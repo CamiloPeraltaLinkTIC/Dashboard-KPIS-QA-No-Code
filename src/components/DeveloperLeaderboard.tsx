@@ -1,0 +1,241 @@
+'use client';
+
+import React from 'react';
+import { DeveloperStat } from '../data/mockData';
+
+interface DeveloperLeaderboardProps {
+  developers: DeveloperStat[];
+}
+
+export default function DeveloperLeaderboard({ developers }: DeveloperLeaderboardProps) {
+  
+  const getRatingColor = (rate: number) => {
+    if (rate >= 90) return 'var(--color-success)';
+    if (rate >= 80) return 'var(--color-warning)';
+    return 'var(--color-danger)';
+  };
+
+  const getFirstTryRate = (dev: DeveloperStat) => {
+    return Math.round((dev.approvedFirstTry / dev.totalTasks) * 100);
+  };
+
+  // Sort developers by complianceRate desc
+  const sortedDevs = [...developers].sort((a, b) => b.complianceRate - a.complianceRate);
+
+  return (
+    <div className="leaderboard-card glass">
+      <div className="leaderboard-header">
+        <h3>Productividad & Calidad de Desarrolladores No-Code</h3>
+        <p>Ranking de cumplimiento normativo y resolución ágil de bugs por desarrollador</p>
+      </div>
+
+      <div className="leaderboard-content">
+        <div className="leaderboard-grid">
+          {sortedDevs.map((dev, index) => {
+            const firstTryRate = getFirstTryRate(dev);
+            const ratingColor = getRatingColor(dev.complianceRate);
+
+            return (
+              <div key={dev.name} className="dev-card glass glass-interactive">
+                <div className="dev-rank">
+                  <span>#{index + 1}</span>
+                </div>
+
+                <div className="dev-identity">
+                  <div className="dev-avatar">
+                    {dev.name.split(' ').map(n => n[0]).join('')}
+                  </div>
+                  <div className="dev-info">
+                    <h4>{dev.name}</h4>
+                    <span>{dev.role}</span>
+                  </div>
+                </div>
+
+                <div className="dev-stats-row">
+                  {/* Metric 1: First-try Pass */}
+                  <div className="dev-stat-block">
+                    <span className="block-label">Primer Intento</span>
+                    <div className="stat-progress-group">
+                      <span className="block-val">{firstTryRate}%</span>
+                      <span className="block-sub">({dev.approvedFirstTry}/{dev.totalTasks} tareas)</span>
+                    </div>
+                    <div className="mini-track">
+                      <div className="mini-fill" style={{ width: `${firstTryRate}%`, backgroundColor: 'var(--color-secondary)' }}></div>
+                    </div>
+                  </div>
+
+                  {/* Metric 2: Compliance */}
+                  <div className="dev-stat-block">
+                    <span className="block-label">Cumplimiento Guías</span>
+                    <div className="stat-progress-group">
+                      <span className="block-val" style={{ color: ratingColor }}>{dev.complianceRate}%</span>
+                      <span className="block-sub">score promedio</span>
+                    </div>
+                    <div className="mini-track">
+                      <div className="mini-fill" style={{ width: `${dev.complianceRate}%`, backgroundColor: ratingColor }}></div>
+                    </div>
+                  </div>
+
+                  {/* Metric 3: MTTR */}
+                  <div className="dev-stat-block">
+                    <span className="block-label">Tiempo Medio de Corrección</span>
+                    <div className="stat-progress-group">
+                      <span className="block-val">{dev.avgFixTimeHours}h</span>
+                      <span className="block-sub">MTTR promedio</span>
+                    </div>
+                    <div className="mini-track">
+                      {/* Inverse bar (lower MTTR is better) */}
+                      <div
+                        className="mini-fill"
+                        style={{
+                          width: `${Math.max(10, 100 - (dev.avgFixTimeHours / 12) * 100)}%`,
+                          backgroundColor: dev.avgFixTimeHours < 5 ? 'var(--color-success)' : dev.avgFixTimeHours < 9 ? 'var(--color-warning)' : 'var(--color-danger)'
+                        }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <style jsx>{`
+        .leaderboard-card {
+          padding: 24px;
+          border-radius: var(--radius-md);
+          display: flex;
+          flex-direction: column;
+          gap: 20px;
+        }
+
+        .leaderboard-header h3 {
+          font-size: 1.1rem;
+          color: var(--text-primary);
+        }
+
+        .leaderboard-header p {
+          font-size: 0.78rem;
+          color: var(--text-secondary);
+        }
+
+        .leaderboard-content {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .leaderboard-grid {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        .dev-card {
+          display: flex;
+          align-items: center;
+          padding: 16px 20px;
+          border-radius: var(--radius-sm);
+          position: relative;
+          gap: 24px;
+          flex-wrap: wrap;
+        }
+
+        .dev-rank {
+          font-size: 1.2rem;
+          font-weight: 850;
+          color: var(--text-muted);
+          min-width: 32px;
+        }
+
+        .dev-identity {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          min-width: 220px;
+          flex: 1;
+        }
+
+        .dev-avatar {
+          width: 44px;
+          height: 44px;
+          border-radius: 50%;
+          background: var(--color-primary-glow);
+          border: 1.5px solid var(--color-primary);
+          color: var(--color-primary);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 750;
+          font-size: 0.95rem;
+        }
+
+        .dev-info h4 {
+          font-size: 0.95rem;
+          color: var(--text-primary);
+          margin-bottom: 2px;
+        }
+
+        .dev-info span {
+          font-size: 0.75rem;
+          color: var(--text-muted);
+        }
+
+        .dev-stats-row {
+          display: flex;
+          gap: 24px;
+          flex: 3;
+          justify-content: space-between;
+          flex-wrap: wrap;
+        }
+
+        .dev-stat-block {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          min-width: 140px;
+          flex: 1;
+        }
+
+        .block-label {
+          font-size: 0.68rem;
+          color: var(--text-muted);
+          text-transform: uppercase;
+          font-weight: 600;
+          letter-spacing: 0.02em;
+        }
+
+        .stat-progress-group {
+          display: flex;
+          align-items: baseline;
+          gap: 6px;
+        }
+
+        .block-val {
+          font-size: 1.1rem;
+          font-weight: 750;
+          color: var(--text-primary);
+        }
+
+        .block-sub {
+          font-size: 0.68rem;
+          color: var(--text-muted);
+        }
+
+        .mini-track {
+          width: 100%;
+          height: 4px;
+          background-color: var(--border-color);
+          border-radius: 9999px;
+          overflow: hidden;
+          margin-top: 2px;
+        }
+
+        .mini-fill {
+          height: 100%;
+          border-radius: 9999px;
+        }
+      `}</style>
+    </div>
+  );
+}
