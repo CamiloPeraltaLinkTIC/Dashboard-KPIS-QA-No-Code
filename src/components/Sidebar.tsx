@@ -46,17 +46,7 @@ export default function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
         </svg>
       )
     },
-    {
-      id: 'governance',
-      label: 'Directrices & Criterios',
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
-          <path d="M12 16v-4" />
-          <path d="M12 8h.01" />
-        </svg>
-      )
-    },
+
     {
       id: 'developers',
       label: 'Perfiles Técnicos',
@@ -68,11 +58,27 @@ export default function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
           <path d="M16 3.13a4 4 0 0 1 0 7.75" />
         </svg>
       )
+    },
+    {
+      id: 'admin',
+      label: 'Administración',
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+          <circle cx="12" cy="12" r="3" />
+        </svg>
+      )
     }
   ];
 
   const menuItems = allMenuItems.filter(item => {
-    if (role === 'dev' && (item.id === 'validator' || item.id === 'developers')) {
+    const isDev = role === 'dev' || role === 'Developer';
+    const isAdmin = role === 'admin' || role === 'Administrator';
+
+    if (isDev && (item.id === 'validator' || item.id === 'developers' || item.id === 'admin')) {
+      return false;
+    }
+    if (!isAdmin && item.id === 'admin') {
       return false;
     }
     return true;
@@ -111,9 +117,9 @@ export default function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
         <div className="footer-card">
           <div className="footer-card-header">
             <span className="pulse-indicator"></span>
-            <h4>{role === 'dev' ? 'Dev Portal Active' : role === 'leader' ? 'Leader View Active' : 'QA Auditor Active'}</h4>
+            <h4>{role === 'dev' ? 'Dev Portal Active' : (role === 'admin' || role === 'Administrator' ? 'Admin Portal' : role === 'leader' ? 'Leader View Active' : 'QA Auditor Active')}</h4>
           </div>
-          <p>{role === 'dev' ? 'Métricas de desarrollo' : role === 'leader' ? 'Métricas de equipo' : 'Módulo de Calificaciones Devs'}</p>
+          <p>{role === 'dev' ? 'Métricas de desarrollo' : (role === 'admin' || role === 'Administrator' ? 'Administración' : role === 'leader' ? 'Métricas de equipo' : 'Módulo de Calificaciones')}</p>
         </div>
       </div>
 

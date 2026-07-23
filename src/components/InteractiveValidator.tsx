@@ -1,24 +1,45 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { defaultRuleCategories, DeveloperReview } from '../data/mockData';
+import { useAuth } from '@/components/AuthProvider';
 
 interface DeveloperDropdownItem {
   id: string;
   name: string;
 }
 
-interface InteractiveValidatorProps {
-  onAddReview: (devId: string, review: DeveloperReview) => void;
-  developers: DeveloperDropdownItem[];
+interface ProjectDropdownItem {
+  id: string;
+  name: string;
 }
 
-export default function InteractiveValidator({ onAddReview, developers }: InteractiveValidatorProps) {
+interface InteractiveValidatorProps {
+  onAddReview: (devId: string, projectId: string, review: DeveloperReview) => void;
+  developers: DeveloperDropdownItem[];
+  projects: ProjectDropdownItem[];
+}
+
+export default function InteractiveValidator({ onAddReview, developers, projects }: InteractiveValidatorProps) {
+  const { profile } = useAuth();
   const [selectedDevId, setSelectedDevId] = useState(developers[0]?.id || '');
+  const [selectedProjectId, setSelectedProjectId] = useState(projects[0]?.id || '');
   const [taskName, setTaskName] = useState('');
   const [platform, setPlatform] = useState<'Bubble' | 'FlutterFlow' | 'Make' | 'Zapier' | 'Retool'>('Bubble');
-  const [qaAnalyst, setQaAnalyst] = useState('Ana Romero');
   const [notes, setNotes] = useState('');
+
+  // Update selected IDs when props load
+  useEffect(() => {
+    if (developers.length > 0 && !selectedDevId) {
+      setSelectedDevId(developers[0].id);
+    }
+  }, [developers]);
+
+  useEffect(() => {
+    if (projects.length > 0 && !selectedProjectId) {
+      setSelectedProjectId(projects[0].id);
+    }
+  }, [projects]);
 
   // Rules Checklist state
   const [rulesState, setRulesState] = useState(defaultRuleCategories);
@@ -58,11 +79,16 @@ export default function InteractiveValidator({ onAddReview, developers }: Intera
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedProjectId) {
+      alert('Por favor selecciona un proyecto');
+      return;
+    }
     if (!taskName.trim()) {
       alert('Por favor introduce el nombre de la tarea evaluada');
       return;
     }
 
+    const qaAnalyst = profile?.username || 'QA';
     const finalScore = calculateScore();
     let status: 'approved' | 'rejected' | 'in_review' = 'in_review';
     if (finalScore >= 85) {
@@ -93,7 +119,7 @@ export default function InteractiveValidator({ onAddReview, developers }: Intera
       qaAnalyst
     };
 
-    onAddReview(selectedDevId, newReview);
+    onAddReview(selectedDevId, selectedProjectId, newReview);
 
     // Reset Form
     setTaskName('');
@@ -154,6 +180,23 @@ export default function InteractiveValidator({ onAddReview, developers }: Intera
           </div>
 
           <div className="form-group">
+            <label htmlFor="val-project">Proyecto</label>
+            <select
+              id="val-project"
+              value={selectedProjectId}
+              onChange={(e) => setSelectedProjectId(e.target.value)}
+              required
+            >
+              <option value="">-- Selecciona Proyecto --</option>
+              {projects.map((proj) => (
+                <option key={proj.id} value={proj.id}>
+                  {proj.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-group">
             <label htmlFor="task-name">Tarea / Feature Evaluada</label>
             <input
               id="task-name"
@@ -166,15 +209,13 @@ export default function InteractiveValidator({ onAddReview, developers }: Intera
           </div>
 
           <div className="form-group">
-            <label htmlFor="val-qa">Auditor QA</label>
-            <select
-              id="val-qa"
-              value={qaAnalyst}
-              onChange={(e) => setQaAnalyst(e.target.value)}
-            >
-              <option value="Ana Romero">Ana Romero</option>
-              <option value="Marcos Díaz">Marcos Díaz</option>
-            </select>
+            <label>Auditor QA Evaluador</label>
+            <input
+              type="text"
+              value={profile?.username || 'QA Analyst'}
+              disabled
+              style={{ opacity: 0.8, cursor: 'not-allowed', background: 'rgba(255,255,255,0.05)' }}
+            />
           </div>
 
           {/* KPIs Section */}

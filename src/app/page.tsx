@@ -9,7 +9,7 @@ import DeveloperSkillsBreakdown from '@/components/DeveloperSkillsBreakdown';
 import RecentLogs from '@/components/RecentLogs';
 import InteractiveValidator from '@/components/InteractiveValidator';
 import DeveloperLeaderboard from '@/components/DeveloperLeaderboard';
-import GovernanceInfo from '@/components/GovernanceInfo';
+import AdminPanel from '@/components/AdminPanel';
 import { useAuth } from '@/components/AuthProvider';
 import { supabase } from '@/lib/supabase/client';
 
@@ -25,30 +25,128 @@ export default function DashboardHome() {
   const [currentTab, setCurrentTab] = useState('overview');
   const [selectedDeveloper, setSelectedDeveloper] = useState('All');
   
-  // Developer state initialized with mock data
-  const [developers, setDevelopers] = useState<DeveloperStat[]>(mockDevelopers);
+  const [developers, setDevelopers] = useState<DeveloperStat[]>([]);
+  const [allProjects, setAllProjects] = useState<{ id: string; name: string }[]>([]);
 
-  // Efecto para filtrar si es desarrollador
+  // Fetch real data from Supabase
   React.useEffect(() => {
-    if (profile && profile.role === 'dev') {
-      // Intentar hacer match por username, si no existe en mock data usar el primero
-      const matchedDev = mockDevelopers.find(d => d.name.toLowerCase().includes(profile.username.toLowerCase()));
-      const devToShow = matchedDev || mockDevelopers[0];
-      setDevelopers([devToShow]);
-      setSelectedDeveloper(devToShow.name);
-    } else {
-      setDevelopers(mockDevelopers);
-    }
+    const fetchRealData = async () => {
+      if (!profile) return;
+      
+      try {
+        // 1. Fetch Developers
+        let devQuery = supabase.from('nocode_profiles').select('*').in('role', ['dev', 'Developer', 'desarrollador']);
+        
+        const isDev = profile.role === 'dev' || profile.role === 'Developer';
+        const isQA = profile.role === 'QA';
+
+        if (isDev) {
+          devQuery = devQuery.eq('id', profile.id);
+        } else if (isQA) {
+          const { data: assignments } = await supabase
+            .from('nocode_project_assignments')
+            .select('developer_id')
+            .eq('qa_id', profile.id);
+          const devIds = assignments?.map(a => a.developer_id) || [];
+          if (devIds.length > 0) {
+            devQuery = devQuery.in('id', devIds);
+          } else {
+            devQuery = devQuery.eq('id', '00000000-0000-0000-0000-000000000000');
+          }
+        }
+        
+        const { data: devsData, error: devsError } = await devQuery;
+        if (devsError || !devsData) return;
+
+        const { data: projectsData } = await supabase
+          .from('nocode_projects')
+          .select('id, name');
+        setAllProjects(projectsData || []);
+
+        const devIds = devsData.map(d => d.id);
+        if (devIds.length === 0) {
+          setDevelopers([]);
+          return;
+        }
+
+        // 2. Fetch KPIs for these developers
+        const { data: kpisData } = await supabase
+          .from('nocode_kpis')
+          .select('*, qa:nocode_profiles!nocode_kpis_qa_analyst_id_fkey(username)')
+          .in('developer_id', devIds);
+
+        // 3. Transform to DeveloperStat
+        const realDevelopers: DeveloperStat[] = devsData.map(devRow => {
+          const devKpis = (kpisData || []).filter(k => k.developer_id === devRow.id);
+          
+          const reviews: DeveloperReview[] = devKpis.map(k => ({
+            id: k.id,
+            taskName: k.task_name,
+            platform: k.platform as any,
+            date: k.created_at.split('T')[0],
+            score: k.score || 0,
+            status: k.status as any,
+            kpis: {
+              pixelPerfect: k.pixel_perfect || 0,
+              cumplimientoDod: k.cumplimiento_dod || 0,
+              calidadVisual: k.calidad_visual || 0,
+              erroresVisuales: k.errores_visuales || 0,
+              retrabajo: k.retrabajo || 0,
+            },
+            details: 'Reporte de QA',
+            qaAnalyst: (k.qa as any)?.username || 'QA'
+          }));
+
+          const totalTasks = reviews.length;
+          const approvedFirstTry = reviews.filter(r => r.status === 'approved').length;
+          const complianceRate = totalTasks > 0 ? Math.round(reviews.reduce((sum, r) => sum + r.score, 0) / totalTasks) : 100;
+          
+          const kpisTotal = {
+            pixelPerfect: totalTasks > 0 ? Math.round(reviews.reduce((sum, r) => sum + r.kpis.pixelPerfect, 0) / totalTasks) : 100,
+            cumplimientoDod: totalTasks > 0 ? Math.round(reviews.reduce((sum, r) => sum + r.kpis.cumplimientoDod, 0) / totalTasks) : 100,
+            calidadVisual: totalTasks > 0 ? Math.round(reviews.reduce((sum, r) => sum + r.kpis.calidadVisual, 0) / totalTasks) : 100,
+            erroresVisuales: reviews.reduce((sum, r) => sum + r.kpis.erroresVisuales, 0),
+            retrabajo: reviews.reduce((sum, r) => sum + r.kpis.retrabajo, 0),
+          };
+
+          return {
+            id: devRow.id,
+            name: devRow.full_name || devRow.username || 'Unknown',
+            role: 'No-Code Developer',
+            avatar: (devRow.username || 'D').substring(0, 2).toUpperCase(),
+            approvedFirstTry,
+            totalTasks,
+            avgFixTimeHours: 24, // Placeholder since we don't track MTTR yet
+            complianceRate,
+            skillsScore: { structure: 90, performance: 85, security: 80, ux: 95 }, // Placeholder
+            kpisTotal,
+            reviews: reviews.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+          };
+        });
+
+        setDevelopers(realDevelopers);
+        if (realDevelopers.length > 0) {
+          // Si el seleccionado no existe en la lista, selecciona el primero
+          if (selectedDeveloper !== 'All' && !realDevelopers.some(d => d.id === selectedDeveloper)) {
+            setSelectedDeveloper(profile.role === 'dev' ? realDevelopers[0].id : 'All');
+          }
+        }
+      } catch (e) {
+        console.error('Error fetching real data:', e);
+      }
+    };
+    
+    fetchRealData();
   }, [profile]);
 
-  // Handle adding a QA review to a specific developer
-  const handleAddReview = async (devId: string, newReview: DeveloperReview) => {
-    
+  const handleAddReview = async (devId: string, projectId: string, newReview: DeveloperReview) => {
     // Attempt to save to Supabase
     if (profile?.id) {
       try {
-        await supabase.from('nocode_kpis').insert([{
+        const { data, error } = await supabase.from('nocode_kpis').insert([{
+          developer_id: devId,
           qa_analyst_id: profile.id,
+          project_id: projectId || null,
           task_name: newReview.taskName,
           platform: newReview.platform,
           score: newReview.score,
@@ -59,58 +157,50 @@ export default function DashboardHome() {
           errores_visuales: newReview.kpis.erroresVisuales,
           retrabajo: newReview.kpis.retrabajo,
           month: new Date().toISOString().substring(0, 7)
-        }]);
+        }]).select('id, created_at').single();
+        
+        if (error) {
+          console.error('Error saving to Supabase:', error);
+          alert('Error al guardar: ' + error.message);
+          return;
+        }
+
+        // Update local state smoothly
+        newReview.id = data.id;
+        newReview.date = data.created_at.split('T')[0];
+        
+        setDevelopers((prevDevs) => {
+          return prevDevs.map((dev) => {
+            if (dev.id === devId) {
+              const updatedReviews = [newReview, ...dev.reviews];
+              const totalTasks = updatedReviews.length;
+              const approvedFirstTry = updatedReviews.filter((r) => r.status === 'approved').length;
+              const complianceRate = totalTasks > 0 ? Math.round(updatedReviews.reduce((sum, r) => sum + r.score, 0) / totalTasks) : 100;
+              
+              const kpisTotal = {
+                pixelPerfect: totalTasks > 0 ? Math.round(updatedReviews.reduce((sum, r) => sum + r.kpis.pixelPerfect, 0) / totalTasks) : 100,
+                cumplimientoDod: totalTasks > 0 ? Math.round(updatedReviews.reduce((sum, r) => sum + r.kpis.cumplimientoDod, 0) / totalTasks) : 100,
+                calidadVisual: totalTasks > 0 ? Math.round(updatedReviews.reduce((sum, r) => sum + r.kpis.calidadVisual, 0) / totalTasks) : 100,
+                erroresVisuales: updatedReviews.reduce((sum, r) => sum + r.kpis.erroresVisuales, 0),
+                retrabajo: updatedReviews.reduce((sum, r) => sum + r.kpis.retrabajo, 0),
+              };
+
+              return {
+                ...dev,
+                reviews: updatedReviews,
+                totalTasks,
+                approvedFirstTry,
+                complianceRate,
+                kpisTotal
+              };
+            }
+            return dev;
+          });
+        });
       } catch (e) {
-        console.error('Error saving to Supabase (Ensure schema exists and developer IDs match if linked):', e);
+        console.error('Error saving to Supabase:', e);
       }
     }
-
-    setDevelopers((prevDevs) => {
-      return prevDevs.map((dev) => {
-        if (dev.id === devId) {
-          const updatedReviews = [newReview, ...dev.reviews];
-          const totalTasks = updatedReviews.length;
-          
-          // Calculate approved tasks
-          const approvedFirstTry = updatedReviews.filter((r) => r.status === 'approved').length;
-          
-          // Calculate average compliance rate
-          const sumScore = updatedReviews.reduce((sum, r) => sum + r.score, 0);
-          const complianceRate = Math.round(sumScore / totalTasks);
-          
-          // Accumulate KPIs
-          const kpisTotal = {
-            pixelPerfect: Math.round(updatedReviews.reduce((sum, r) => sum + r.kpis.pixelPerfect, 0) / totalTasks),
-            cumplimientoDod: Math.round(updatedReviews.reduce((sum, r) => sum + r.kpis.cumplimientoDod, 0) / totalTasks),
-            calidadVisual: Math.round(updatedReviews.reduce((sum, r) => sum + r.kpis.calidadVisual, 0) / totalTasks),
-            erroresVisuales: updatedReviews.reduce((sum, r) => sum + r.kpis.erroresVisuales, 0),
-            retrabajo: updatedReviews.reduce((sum, r) => sum + r.kpis.retrabajo, 0),
-          };
-
-          // Dynamically adjust skill competencies
-          const structureScore = Math.min(100, Math.max(50, Math.round((dev.skillsScore.structure * 4 + newReview.score) / 5)));
-          const performanceScore = Math.min(100, Math.max(50, Math.round((dev.skillsScore.performance * 4 + newReview.score) / 5)));
-          const securityScore = Math.min(100, Math.max(50, Math.round((dev.skillsScore.security * 4 + newReview.score) / 5)));
-          const uxScore = Math.min(100, Math.max(50, Math.round((dev.skillsScore.ux * 4 + newReview.score) / 5)));
-
-          return {
-            ...dev,
-            reviews: updatedReviews,
-            totalTasks,
-            approvedFirstTry,
-            complianceRate,
-            kpisTotal,
-            skillsScore: {
-              structure: structureScore,
-              performance: performanceScore,
-              security: securityScore,
-              ux: uxScore
-            }
-          };
-        }
-        return dev;
-      });
-    });
   };
 
   // Flatten reviews to display in the historical logs list
@@ -334,13 +424,15 @@ export default function DashboardHome() {
 
           {currentTab === 'validator' && (
             <div className="view-pane animate-fade-in">
-              <InteractiveValidator onAddReview={handleAddReview} developers={developersDropdown} />
+              <InteractiveValidator onAddReview={handleAddReview} developers={developersDropdown} projects={allProjects} />
             </div>
           )}
 
-          {currentTab === 'governance' && (
+
+
+          {currentTab === 'admin' && (
             <div className="view-pane animate-fade-in">
-              <GovernanceInfo />
+              <AdminPanel />
             </div>
           )}
 
@@ -360,7 +452,7 @@ export default function DashboardHome() {
                         <span className="tab-avatar">{d.avatar}</span>
                         <div className="tab-meta">
                           <strong>{d.name}</strong>
-                          <span>{d.role.split('(')[1]?.replace(')', '') || d.role}</span>
+                          <span>{d.role}</span>
                         </div>
                       </button>
                     ))}

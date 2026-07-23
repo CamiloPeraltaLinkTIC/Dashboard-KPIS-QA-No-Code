@@ -165,8 +165,8 @@ export default function Header({
         <div className="user-profile">
           <div className="profile-avatar">{profile?.role?.substring(0, 2).toUpperCase() || 'QA'}</div>
           <div className="profile-info">
-            <span className="user-name">{profile?.username || 'Usuario'}</span>
-            <span className="user-role">{profile?.role === 'leader' ? 'Líder' : profile?.role === 'dev' ? 'Desarrollador' : 'QA'}</span>
+            <span className="user-name">{profile?.full_name || profile?.username || 'Usuario'}</span>
+            <span className="user-role">{profile?.role === 'leader' ? 'Líder' : (profile?.role === 'admin' || profile?.role === 'Administrator') ? 'Admin' : (profile?.role === 'dev' || profile?.role === 'Developer') ? 'Desarrollador' : 'QA'}</span>
           </div>
           <button className="icon-btn logout-btn" onClick={signOut} title="Cerrar sesión" aria-label="Cerrar sesión">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

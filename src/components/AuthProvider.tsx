@@ -7,8 +7,9 @@ import Login from './Login';
 
 type Profile = {
   id: string;
-  role: 'QA' | 'dev' | 'leader';
+  role: 'QA' | 'dev' | 'leader' | 'admin' | 'Administrator' | string;
   username: string;
+  full_name?: string;
 };
 
 type AuthContextType = {
@@ -92,8 +93,18 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         }
       }
 
+      console.log('fetchProfile: userId =', userId, 'data =', data, 'error =', error);
+
+      if (error) {
+        console.error('fetchProfile error details:', error.message, error.details, error.hint, error.code);
+      }
+
       if (!error && data) {
+        console.log('fetchProfile success: setting profile to', data);
         setProfile(data as Profile);
+      } else if (error) {
+        // Clear profile if there was an error fetching it
+        setProfile(null);
       }
     } catch (err) {
       console.error('Error fetching/creating profile:', err);

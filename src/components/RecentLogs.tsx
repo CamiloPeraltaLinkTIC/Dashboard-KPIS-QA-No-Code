@@ -132,16 +132,16 @@ export default function RecentLogs({ logs }: RecentLogsProps) {
                 <h5>Conteo de Bugs Registrados</h5>
                 <div className="bugs-distribution">
                   <div className="bug-dist-item">
-                    <span className="bug-count count-visual">{selectedLog.bugsFound.visual}</span>
-                    <span className="bug-label">Visuales / UI</span>
+                    <span className="bug-count count-visual">{selectedLog.kpis?.erroresVisuales ?? 0}</span>
+                    <span className="bug-label">Errores Visuales</span>
                   </div>
                   <div className="bug-dist-item">
-                    <span className="bug-count count-logic">{selectedLog.bugsFound.logic}</span>
-                    <span className="bug-label">Lógicos / Funcional</span>
+                    <span className="bug-count count-logic">{selectedLog.kpis?.retrabajo ?? 0}</span>
+                    <span className="bug-label">Retrabajo</span>
                   </div>
                   <div className="bug-dist-item">
-                    <span className="bug-count count-perf">{selectedLog.bugsFound.performance}</span>
-                    <span className="bug-label">Rendimiento / APIs</span>
+                    <span className="bug-count count-perf">{selectedLog.kpis?.cumplimientoDod ?? 0}%</span>
+                    <span className="bug-label">Cumplimiento DoD</span>
                   </div>
                 </div>
               </div>

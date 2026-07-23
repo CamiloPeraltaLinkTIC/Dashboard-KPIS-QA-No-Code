@@ -8,6 +8,7 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isSignUp, setIsSignUp] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -16,13 +17,25 @@ export default function Login() {
 
     try {
       const email = `${username.trim()}@yopmail.com`;
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      
+      let authError;
+      
+      if (isSignUp) {
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+        });
+        authError = error;
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        authError = error;
+      }
 
-      if (error) {
-        throw error;
+      if (authError) {
+        throw authError;
       }
     } catch (err: any) {
       setError(err.message || 'Error al iniciar sesión');
@@ -36,7 +49,7 @@ export default function Login() {
       <div className="login-card glass animate-fade-in">
         <div className="login-header">
           <h2>Panel de Calidad y Gobernanza</h2>
-          <p>Inicia sesión con tu usuario</p>
+          <p>{isSignUp ? 'Crea una cuenta nueva' : 'Inicia sesión con tu usuario'}</p>
         </div>
 
         <form onSubmit={handleLogin} className="login-form">
@@ -72,8 +85,18 @@ export default function Login() {
           </div>
 
           <button type="submit" disabled={loading} className="btn-primary">
-            {loading ? 'Iniciando sesión...' : 'Ingresar'}
+            {loading ? (isSignUp ? 'Creando cuenta...' : 'Iniciando sesión...') : (isSignUp ? 'Crear cuenta' : 'Ingresar')}
           </button>
+          
+          <div className="toggle-auth">
+            <button 
+              type="button" 
+              className="btn-link"
+              onClick={() => setIsSignUp(!isSignUp)}
+            >
+              {isSignUp ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}
+            </button>
+          </div>
         </form>
       </div>
 
@@ -202,6 +225,26 @@ export default function Login() {
         .btn-primary:disabled {
           opacity: 0.7;
           cursor: not-allowed;
+        }
+
+        .toggle-auth {
+          text-align: center;
+          margin-top: 12px;
+        }
+
+        .btn-link {
+          background: none;
+          border: none;
+          color: var(--text-secondary);
+          font-size: 0.85rem;
+          cursor: pointer;
+          transition: color 0.2s;
+          padding: 5px;
+        }
+
+        .btn-link:hover {
+          color: var(--color-primary);
+          text-decoration: underline;
         }
 
         .error-message {
