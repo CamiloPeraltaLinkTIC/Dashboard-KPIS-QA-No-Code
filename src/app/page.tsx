@@ -4,7 +4,7 @@ import React, { useState, useMemo } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import MetricCard from '@/components/MetricCard';
-import { WeeklyBugsChart, BugCategoriesDonut } from '@/components/Charts';
+import { BugCategoriesDonut } from '@/components/Charts';
 import DeveloperSkillsBreakdown from '@/components/DeveloperSkillsBreakdown';
 import RecentLogs from '@/components/RecentLogs';
 import InteractiveValidator from '@/components/InteractiveValidator';
@@ -12,10 +12,9 @@ import DeveloperLeaderboard from '@/components/DeveloperLeaderboard';
 import AdminPanel from '@/components/AdminPanel';
 import { useAuth } from '@/components/AuthProvider';
 import { supabase } from '@/lib/supabase/client';
+import { formatDateTime } from '@/lib/format';
 
 import {
-  mockDevelopers,
-  mockWeeklyTrends,
   DeveloperStat,
   DeveloperReview
 } from '@/data/mockData';
@@ -82,10 +81,10 @@ export default function DashboardHome() {
           const reviews: DeveloperReview[] = devKpis.map(k => ({
             id: k.id,
             taskName: k.task_name,
-            platform: k.platform as any,
-            date: k.created_at.split('T')[0],
+            date: k.created_at, // timestamp completo (fecha y hora)
             score: k.score || 0,
-            status: k.status as any,
+            // La BD almacena 'review'; internamente la app usa 'in_review'
+            status: (k.status === 'review' ? 'in_review' : k.status) as any,
             kpis: {
               pixelPerfect: k.pixel_perfect || 0,
               cumplimientoDod: k.cumplimiento_dod || 0,
@@ -93,7 +92,7 @@ export default function DashboardHome() {
               erroresVisuales: k.errores_visuales || 0,
               retrabajo: k.retrabajo || 0,
             },
-            details: 'Reporte de QA',
+            details: k.details || 'Reporte de QA',
             qaAnalyst: (k.qa as any)?.username || 'QA'
           }));
 
@@ -109,6 +108,17 @@ export default function DashboardHome() {
             retrabajo: reviews.reduce((sum, r) => sum + r.kpis.retrabajo, 0),
           };
 
+          // Competencias derivadas de los KPIs reales (antes eran valores fijos)
+          const erroresPenalty = totalTasks > 0
+            ? Math.min(70, Math.round((kpisTotal.erroresVisuales / totalTasks) * 12))
+            : 0;
+          const skillsScore = {
+            structure: kpisTotal.cumplimientoDod,        // Cumplimiento de directrices / DoD
+            performance: complianceRate,                 // Score global de calidad
+            security: Math.max(0, 100 - erroresPenalty), // A menos errores, mejor manejo
+            ux: kpisTotal.calidadVisual,                 // Calidad visual / responsividad
+          };
+
           return {
             id: devRow.id,
             name: devRow.full_name || devRow.username || 'Unknown',
@@ -116,20 +126,19 @@ export default function DashboardHome() {
             avatar: (devRow.username || 'D').substring(0, 2).toUpperCase(),
             approvedFirstTry,
             totalTasks,
-            avgFixTimeHours: 24, // Placeholder since we don't track MTTR yet
             complianceRate,
-            skillsScore: { structure: 90, performance: 85, security: 80, ux: 95 }, // Placeholder
+            skillsScore,
             kpisTotal,
             reviews: reviews.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
           };
         });
 
         setDevelopers(realDevelopers);
-        if (realDevelopers.length > 0) {
-          // Si el seleccionado no existe en la lista, selecciona el primero
-          if (selectedDeveloper !== 'All' && !realDevelopers.some(d => d.id === selectedDeveloper)) {
-            setSelectedDeveloper(profile.role === 'dev' ? realDevelopers[0].id : 'All');
-          }
+        // El filtro (Header, stats, etc.) trabaja siempre con el NOMBRE del dev, no el id
+        if (isDev && realDevelopers.length > 0) {
+          setSelectedDeveloper(realDevelopers[0].name);
+        } else if (selectedDeveloper !== 'All' && !realDevelopers.some(d => d.name === selectedDeveloper)) {
+          setSelectedDeveloper('All');
         }
       } catch (e) {
         console.error('Error fetching real data:', e);
@@ -148,14 +157,17 @@ export default function DashboardHome() {
           qa_analyst_id: profile.id,
           project_id: projectId || null,
           task_name: newReview.taskName,
-          platform: newReview.platform,
+          // La columna 'platform' es NOT NULL en la BD; ya no se usa en la UI, se envía un valor por defecto
+          platform: 'General',
           score: newReview.score,
-          status: newReview.status,
+          // La BD sólo admite 'review'; la app usa 'in_review' internamente
+          status: newReview.status === 'in_review' ? 'review' : newReview.status,
           pixel_perfect: newReview.kpis.pixelPerfect,
           cumplimiento_dod: newReview.kpis.cumplimientoDod,
           calidad_visual: newReview.kpis.calidadVisual,
           errores_visuales: newReview.kpis.erroresVisuales,
           retrabajo: newReview.kpis.retrabajo,
+          details: newReview.details,
           month: new Date().toISOString().substring(0, 7)
         }]).select('id, created_at').single();
         
@@ -167,7 +179,7 @@ export default function DashboardHome() {
 
         // Update local state smoothly
         newReview.id = data.id;
-        newReview.date = data.created_at.split('T')[0];
+        newReview.date = data.created_at; // timestamp completo (fecha y hora)
         
         setDevelopers((prevDevs) => {
           return prevDevs.map((dev) => {
@@ -229,83 +241,62 @@ export default function DashboardHome() {
     return developers.find((d) => d.name.toLowerCase() === selectedDeveloper.toLowerCase());
   }, [developers, selectedDeveloper]);
 
-  // Dynamic statistics mapping (Filters by developer if selected)
+  // KPIs y sparklines calculados con datos reales de las evaluaciones
   const stats = useMemo(() => {
+    // Serie real: últimas ~6 evaluaciones en orden cronológico (para las sparklines)
+    const buildSeries = (revs: DeveloperReview[], pick: (r: DeveloperReview) => number, fallback: number) => {
+      const asc = [...revs].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      const vals = asc.map(pick).slice(-6);
+      if (vals.length === 0) return [fallback, fallback];
+      if (vals.length === 1) return [vals[0], vals[0]];
+      return vals;
+    };
+
     if (selectedDeveloper !== 'All' && selectedDeveloperData) {
       const dev = selectedDeveloperData;
-      const total = dev.reviews.length || 1;
-      const approvedCount = dev.reviews.filter((r) => r.status === 'approved').length;
-      const rejectedCount = dev.reviews.filter((r) => r.status === 'rejected').length;
-      
-      const passRate = Math.round((approvedCount / total) * 100);
-      const rejectionRate = Math.round((rejectedCount / total) * 100);
-      
-      const totalErroresVisuales = dev.kpisTotal.erroresVisuales;
-      const totalRetrabajo = dev.kpisTotal.retrabajo;
-      
-      // Historical review scores for sparkline
-      const sparkScores = dev.reviews.slice(0, 5).reverse().map((r) => r.score);
-      // Fill to at least 4 points
-      while (sparkScores.length < 4) {
-        sparkScores.unshift(dev.complianceRate);
-      }
-
+      const k = dev.kpisTotal;
       return {
-        passRate,
-        complianceRate: dev.complianceRate,
-        pixelPerfect: dev.kpisTotal.pixelPerfect,
-        erroresVisuales: totalErroresVisuales,
-        retrabajo: totalRetrabajo,
-        rejectionRate,
-        trendPass: sparkScores,
-        trendScore: sparkScores,
-        trendErrores: [Math.round(totalErroresVisuales * 1.3), Math.round(totalErroresVisuales * 1.1), Math.round(totalErroresVisuales * 0.9), totalErroresVisuales],
-        trendRework: [Math.round(totalRetrabajo * 1.2), Math.round(totalRetrabajo * 1.1), Math.round(totalRetrabajo * 0.9), totalRetrabajo],
-        kpisTotal: dev.kpisTotal
+        pixelPerfect: k.pixelPerfect,
+        erroresVisuales: k.erroresVisuales,
+        retrabajo: k.retrabajo,
+        kpisTotal: k,
+        trendPixel: buildSeries(dev.reviews, (r) => r.kpis.pixelPerfect, k.pixelPerfect),
+        trendDod: buildSeries(dev.reviews, (r) => r.kpis.cumplimientoDod, k.cumplimientoDod),
+        trendCalidad: buildSeries(dev.reviews, (r) => r.kpis.calidadVisual, k.calidadVisual),
+        trendErrores: buildSeries(dev.reviews, (r) => r.kpis.erroresVisuales, 0),
+        trendRework: buildSeries(dev.reviews, (r) => r.kpis.retrabajo, 0),
       };
     }
 
-    // Default overview statistics (Aggregated across all developers)
-    let totalReviews = allReviews.length || 1;
-    let approvedCount = allReviews.filter((r) => r.status === 'approved').length;
-    let rejectedCount = allReviews.filter((r) => r.status === 'rejected').length;
-
-    const passRate = Math.round((approvedCount / totalReviews) * 100);
-    const rejectionRate = Math.round((rejectedCount / totalReviews) * 100);
-    
-    let sumScore = 0;
-    let totalPixelPerfect = 0;
-    let totalErroresVisuales = 0;
-    let totalRetrabajo = 0;
-
+    // Agregado de todo el equipo
+    const devCount = developers.length || 1;
+    let totalPixel = 0, totalDod = 0, totalCalidad = 0, totalErrores = 0, totalRetrabajo = 0;
     developers.forEach((d) => {
-      sumScore += d.complianceRate;
-      totalPixelPerfect += d.kpisTotal.pixelPerfect;
-      totalErroresVisuales += d.kpisTotal.erroresVisuales;
+      totalPixel += d.kpisTotal.pixelPerfect;
+      totalDod += d.kpisTotal.cumplimientoDod;
+      totalCalidad += d.kpisTotal.calidadVisual;
+      totalErrores += d.kpisTotal.erroresVisuales;
       totalRetrabajo += d.kpisTotal.retrabajo;
     });
 
-    const complianceRate = Math.round(sumScore / developers.length);
-    const avgPixelPerfect = Math.round(totalPixelPerfect / developers.length);
+    const kpisTotal = {
+      pixelPerfect: Math.round(totalPixel / devCount),
+      cumplimientoDod: Math.round(totalDod / devCount),
+      calidadVisual: Math.round(totalCalidad / devCount),
+      erroresVisuales: totalErrores,
+      retrabajo: totalRetrabajo,
+    };
 
     return {
-      passRate,
-      complianceRate,
-      pixelPerfect: avgPixelPerfect,
-      erroresVisuales: totalErroresVisuales,
+      pixelPerfect: kpisTotal.pixelPerfect,
+      erroresVisuales: totalErrores,
       retrabajo: totalRetrabajo,
-      rejectionRate,
-      trendPass: [passRate - 5, passRate - 2, passRate + 1, passRate],
-      trendScore: [complianceRate - 3, complianceRate - 1, complianceRate + 2, complianceRate],
-      trendErrores: [totalErroresVisuales + 8, totalErroresVisuales + 5, totalErroresVisuales + 2, totalErroresVisuales],
-      trendRework: [totalRetrabajo + 4, totalRetrabajo + 2, totalRetrabajo - 1, totalRetrabajo],
-      kpisTotal: { 
-        pixelPerfect: avgPixelPerfect, 
-        cumplimientoDod: Math.round(developers.reduce((sum, d) => sum + d.kpisTotal.cumplimientoDod, 0) / developers.length),
-        calidadVisual: Math.round(developers.reduce((sum, d) => sum + d.kpisTotal.calidadVisual, 0) / developers.length),
-        erroresVisuales: totalErroresVisuales,
-        retrabajo: totalRetrabajo
-      }
+      kpisTotal,
+      trendPixel: buildSeries(allReviews, (r) => r.kpis.pixelPerfect, kpisTotal.pixelPerfect),
+      trendDod: buildSeries(allReviews, (r) => r.kpis.cumplimientoDod, kpisTotal.cumplimientoDod),
+      trendCalidad: buildSeries(allReviews, (r) => r.kpis.calidadVisual, kpisTotal.calidadVisual),
+      trendErrores: buildSeries(allReviews, (r) => r.kpis.erroresVisuales, 0),
+      trendRework: buildSeries(allReviews, (r) => r.kpis.retrabajo, 0),
     };
   }, [developers, allReviews, selectedDeveloper, selectedDeveloperData]);
 
@@ -332,6 +323,7 @@ export default function DashboardHome() {
           selectedDeveloper={selectedDeveloper}
           setSelectedDeveloper={setSelectedDeveloper}
           developers={developersDropdown}
+          recentReviews={allReviews.slice(0, 6)}
         />
 
         <div className="tab-viewport">
@@ -340,42 +332,58 @@ export default function DashboardHome() {
               {/* Developer Specific or Team KPIs */}
               <div className="kpi-cards-grid">
                 <MetricCard
-                  title="Aprobación a Primer Intento"
-                  value={`${stats.passRate}%`}
-                  subtext="Cero re-trabajo QA"
-                  trend={selectedDeveloper === 'All' ? "+4.2%" : "Individual"}
-                  trendType="positive"
-                  color="success"
-                  sparklineData={stats.trendPass}
-                  icon={
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                      <polyline points="22 4 12 14.01 9 11.01" />
-                    </svg>
-                  }
-                />
-
-                <MetricCard
-                  title="Score de Calidad Promedio"
-                  value={`${stats.complianceRate}/100`}
-                  subtext="Cumplimiento de directrices"
-                  trend={selectedDeveloper === 'All' ? "+1.8%" : "Individual"}
+                  title="Pixel Perfect"
+                  value={`${stats.kpisTotal.pixelPerfect}%`}
+                  subtext="Fidelidad respecto al diseño"
+                  trend={selectedDeveloper === 'All' ? "Promedio equipo" : "Individual"}
                   trendType="positive"
                   color="primary"
-                  sparklineData={stats.trendScore}
+                  sparklineData={stats.trendPixel}
                   icon={
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                      <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+                      <circle cx="12" cy="12" r="3" />
                     </svg>
                   }
                 />
 
                 <MetricCard
-                  title="Errores Visuales"
+                  title="Cumplimiento de DoD"
+                  value={`${stats.kpisTotal.cumplimientoDod}%`}
+                  subtext="Definition of Done"
+                  trend={selectedDeveloper === 'All' ? "Promedio equipo" : "Individual"}
+                  trendType="positive"
+                  color="success"
+                  sparklineData={stats.trendDod}
+                  icon={
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="m9 11 3 3L22 4" />
+                      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                    </svg>
+                  }
+                />
+
+                <MetricCard
+                  title="Calidad Visual"
+                  value={`${stats.kpisTotal.calidadVisual}%`}
+                  subtext="Consistencia y acabado UI"
+                  trend={selectedDeveloper === 'All' ? "Promedio equipo" : "Individual"}
+                  trendType="positive"
+                  color="success"
+                  sparklineData={stats.trendCalidad}
+                  icon={
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M12 3l2.09 6.26L20 9.27l-5 3.64L16.18 21 12 17.27 7.82 21 9 12.91l-5-3.64 5.91-.01z" />
+                    </svg>
+                  }
+                />
+
+                <MetricCard
+                  title="Errores Visuales y de Diseño"
                   value={stats.erroresVisuales}
                   subtext="Detectados por QA"
-                  trend={selectedDeveloper === 'All' ? "-12.5%" : "Histórico"}
-                  trendType="positive" // less bugs is positive
+                  trend={selectedDeveloper === 'All' ? "Total equipo" : "Histórico"}
+                  trendType="positive" // menos errores es positivo
                   color="danger"
                   sparklineData={stats.trendErrores}
                   icon={
@@ -387,10 +395,10 @@ export default function DashboardHome() {
                 />
 
                 <MetricCard
-                  title="Retrabajo Total"
+                  title="Retrabajo"
                   value={stats.retrabajo}
                   subtext="Incidencias devueltas"
-                  trend={selectedDeveloper === 'All' ? "-2.1%" : "Re-trabajo"}
+                  trend={selectedDeveloper === 'All' ? "Total equipo" : "Re-trabajo"}
                   trendType="positive"
                   color="warning"
                   sparklineData={stats.trendRework}
@@ -427,8 +435,6 @@ export default function DashboardHome() {
               <InteractiveValidator onAddReview={handleAddReview} developers={developersDropdown} projects={allProjects} />
             </div>
           )}
-
-
 
           {currentTab === 'admin' && (
             <div className="view-pane animate-fade-in">
@@ -481,8 +487,8 @@ export default function DashboardHome() {
                             <strong>{activeProfileData.approvedFirstTry}</strong>
                           </div>
                           <div className="quick-item">
-                            <span>MTTR Bugs</span>
-                            <strong>{activeProfileData.avgFixTimeHours}h</strong>
+                            <span>Retrabajo</span>
+                            <strong>{activeProfileData.kpisTotal.retrabajo}</strong>
                           </div>
                         </div>
                       </div>
@@ -504,7 +510,6 @@ export default function DashboardHome() {
                               <tr>
                                 <th>ID</th>
                                 <th>Tarea / Entrega</th>
-                                <th>Plataforma</th>
                                 <th>Score</th>
                                 <th>Auditor</th>
                                 <th>Fecha</th>
@@ -516,14 +521,13 @@ export default function DashboardHome() {
                                 <tr key={rev.id}>
                                   <td className="log-id-cell">{rev.id}</td>
                                   <td><strong>{rev.taskName}</strong></td>
-                                  <td><span className="platform-tag">{rev.platform}</span></td>
                                   <td>
                                     <span className={`score-badge ${rev.score >= 90 ? 'score-excellent' : rev.score >= 80 ? 'score-good' : 'score-poor'}`}>
                                       {rev.score}/100
                                     </span>
                                   </td>
                                   <td>{rev.qaAnalyst}</td>
-                                  <td>{rev.date}</td>
+                                  <td>{formatDateTime(rev.date)}</td>
                                   <td>
                                     <span className={`badge ${rev.status === 'approved' ? 'badge-success' : rev.status === 'rejected' ? 'badge-danger' : 'badge-warning'}`}>
                                       {rev.status === 'approved' ? 'Aprobado' : rev.status === 'rejected' ? 'Rechazado' : 'En revisión'}

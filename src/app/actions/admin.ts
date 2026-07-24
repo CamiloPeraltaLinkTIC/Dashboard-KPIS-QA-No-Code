@@ -27,6 +27,7 @@ export async function createNewUser(formData: FormData) {
     return { success: false, error: 'Faltan campos requeridos.' };
   }
 
+  // El dominio se mantiene internamente; no se muestra en el front
   const email = `${username.trim()}@yopmail.com`;
 
   try {
@@ -46,7 +47,7 @@ export async function createNewUser(formData: FormData) {
     }
 
     // 2. The trigger `on_auth_user_created_nocode` will have created the profile automatically.
-    // However, it creates it with role 'dev' (or 'admin' if admin@yopmail.com).
+    // However, it creates it with role 'dev' (or 'admin' según la regla del trigger por email).
     // We need to update the profile with the selected role and QA assignment.
     
     // Give it a brief delay to ensure trigger has executed (usually synchronous in Postgres, but just in case)

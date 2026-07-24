@@ -2,10 +2,20 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/components/AuthProvider';
+import { formatDateTime } from '@/lib/format';
 
 interface DeveloperItem {
   id: string;
   name: string;
+}
+
+interface ReviewNotification {
+  id: string;
+  developerName: string;
+  taskName: string;
+  score: number;
+  status: string;
+  date: string;
 }
 
 interface HeaderProps {
@@ -13,13 +23,15 @@ interface HeaderProps {
   selectedDeveloper: string;
   setSelectedDeveloper: (developer: string) => void;
   developers: DeveloperItem[];
+  recentReviews: ReviewNotification[];
 }
 
 export default function Header({
   currentTab,
   selectedDeveloper,
   setSelectedDeveloper,
-  developers
+  developers,
+  recentReviews
 }: HeaderProps) {
   const { profile, signOut } = useAuth();
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
@@ -47,8 +59,6 @@ export default function Header({
         return 'Historial de Auditorías';
       case 'validator':
         return 'Calificar Desarrollador (Nueva Auditoría)';
-      case 'governance':
-        return 'Directrices y Criterios QA';
       case 'developers':
         return 'Perfiles Técnicos Individuales';
       default:
@@ -64,8 +74,6 @@ export default function Header({
         return 'Registro completo y auditoría cronológica de tareas revisadas.';
       case 'validator':
         return 'Evalúa los lineamientos técnicos de un entregable y calcula la calificación del desarrollador.';
-      case 'governance':
-        return 'Políticas de nomenclatura, rendimiento, seguridad y experiencia de usuario.';
       case 'developers':
         return 'Análisis detallado de aptitudes y evolución técnica por programador.';
       default:
@@ -125,7 +133,7 @@ export default function Header({
               <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
               <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
             </svg>
-            <span className="notification-badge"></span>
+            {recentReviews.length > 0 && <span className="notification-badge"></span>}
           </button>
 
           {notificationsOpen && (
@@ -135,27 +143,29 @@ export default function Header({
                 <button className="clear-btn" onClick={() => setNotificationsOpen(false)}>Cerrar</button>
               </div>
               <div className="dropdown-content">
-                <div className="notification-item unread">
-                  <div className="item-marker"></div>
-                  <div className="item-text">
-                    <p><strong>Diego Ortega</strong> ha sido calificado con <strong>68/100</strong> en App Repartidores.</p>
-                    <span className="danger-text">Hace 10 min</span>
+                {recentReviews.length === 0 ? (
+                  <div className="notification-item">
+                    <div className="item-marker read"></div>
+                    <div className="item-text">
+                      <p>Aún no hay evaluaciones registradas.</p>
+                    </div>
                   </div>
-                </div>
-                <div className="notification-item unread">
-                  <div className="item-marker"></div>
-                  <div className="item-text">
-                    <p><strong>Sofía Castro</strong> obtuvo un score perfecto de <strong>100/100</strong> en Make.</p>
-                    <span>Hace 1 hora</span>
-                  </div>
-                </div>
-                <div className="notification-item">
-                  <div className="item-marker read"></div>
-                  <div className="item-text">
-                    <p>Carlos Mendoza corrigió un desalineamiento visual en Bubble.</p>
-                    <span>Ayer</span>
-                  </div>
-                </div>
+                ) : (
+                  recentReviews.map((rev) => {
+                    const statusText =
+                      rev.status === 'approved' ? 'Aprobado' :
+                      rev.status === 'rejected' ? 'Rechazado' : 'En revisión';
+                    return (
+                      <div key={rev.id} className={`notification-item ${rev.status === 'rejected' ? 'unread' : ''}`}>
+                        <div className={`item-marker ${rev.status === 'approved' ? 'read' : ''}`}></div>
+                        <div className="item-text">
+                          <p><strong>{rev.developerName}</strong> — {rev.taskName}: <strong>{rev.score}/100</strong> ({statusText})</p>
+                          <span className={rev.status === 'rejected' ? 'danger-text' : ''}>{formatDateTime(rev.date)}</span>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </div>
           )}

@@ -16,6 +16,7 @@ export default function DeveloperLeaderboard({ developers }: DeveloperLeaderboar
   };
 
   const getFirstTryRate = (dev: DeveloperStat) => {
+    if (!dev.totalTasks) return 0;
     return Math.round((dev.approvedFirstTry / dev.totalTasks) * 100);
   };
 
@@ -76,20 +77,21 @@ export default function DeveloperLeaderboard({ developers }: DeveloperLeaderboar
                     </div>
                   </div>
 
-                  {/* Metric 3: MTTR */}
+                  {/* Metric 3: Calidad Visual */}
                   <div className="dev-stat-block">
-                    <span className="block-label">Tiempo Medio de Corrección</span>
+                    <span className="block-label">Calidad Visual</span>
                     <div className="stat-progress-group">
-                      <span className="block-val">{dev.avgFixTimeHours}h</span>
-                      <span className="block-sub">MTTR promedio</span>
+                      <span className="block-val" style={{ color: getRatingColor(dev.kpisTotal.calidadVisual) }}>
+                        {dev.kpisTotal.calidadVisual}%
+                      </span>
+                      <span className="block-sub">acabado UI</span>
                     </div>
                     <div className="mini-track">
-                      {/* Inverse bar (lower MTTR is better) */}
                       <div
                         className="mini-fill"
                         style={{
-                          width: `${Math.max(10, 100 - (dev.avgFixTimeHours / 12) * 100)}%`,
-                          backgroundColor: dev.avgFixTimeHours < 5 ? 'var(--color-success)' : dev.avgFixTimeHours < 9 ? 'var(--color-warning)' : 'var(--color-danger)'
+                          width: `${dev.kpisTotal.calidadVisual}%`,
+                          backgroundColor: getRatingColor(dev.kpisTotal.calidadVisual)
                         }}
                       ></div>
                     </div>

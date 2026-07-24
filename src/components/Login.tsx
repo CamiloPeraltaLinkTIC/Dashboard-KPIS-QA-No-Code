@@ -16,19 +16,20 @@ export default function Login() {
     setError(null);
 
     try {
-      const email = `${username.trim()}@yopmail.com`;
-      
+      // El dominio se mantiene internamente; no se muestra en el front
+      const emailValue = `${username.trim()}@yopmail.com`;
+
       let authError;
-      
+
       if (isSignUp) {
         const { error } = await supabase.auth.signUp({
-          email,
+          email: emailValue,
           password,
         });
         authError = error;
       } else {
         const { error } = await supabase.auth.signInWithPassword({
-          email,
+          email: emailValue,
           password,
         });
         authError = error;
@@ -57,18 +58,15 @@ export default function Login() {
           
           <div className="form-group">
             <label htmlFor="username">Usuario</label>
-            <div className="input-with-addon">
-              <input
-                id="username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="ej. fabian.peralta"
-                required
-                autoComplete="username"
-              />
-              <span className="addon">@yopmail.com</span>
-            </div>
+            <input
+              id="username"
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="ej. fabian.peralta"
+              required
+              autoComplete="username"
+            />
           </div>
 
           <div className="form-group">

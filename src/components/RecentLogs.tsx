@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { DeveloperReview } from '../data/mockData';
+import { formatDateTime } from '@/lib/format';
 
 interface RecentLogsProps {
   logs: (DeveloperReview & { developerName: string })[];
@@ -68,7 +69,6 @@ export default function RecentLogs({ logs }: RecentLogsProps) {
               <th>ID Review</th>
               <th>Desarrollador</th>
               <th>Tarea / Entregable</th>
-              <th>Plataforma</th>
               <th>Calificación</th>
               <th>Auditor QA</th>
               <th>Fecha</th>
@@ -87,15 +87,12 @@ export default function RecentLogs({ logs }: RecentLogsProps) {
                   <span className="project-name">{log.taskName}</span>
                 </td>
                 <td>
-                  <span className="platform-tag">{log.platform}</span>
-                </td>
-                <td>
                   <span className={`score-badge ${getScoreClass(log.score)}`}>
                     {log.score}/100
                   </span>
                 </td>
                 <td>{log.qaAnalyst}</td>
-                <td className="date-cell">{log.date}</td>
+                <td className="date-cell">{formatDateTime(log.date)}</td>
                 <td>{getStatusBadge(log.status)}</td>
                 <td>
                   <button
@@ -133,7 +130,7 @@ export default function RecentLogs({ logs }: RecentLogsProps) {
                 <div className="bugs-distribution">
                   <div className="bug-dist-item">
                     <span className="bug-count count-visual">{selectedLog.kpis?.erroresVisuales ?? 0}</span>
-                    <span className="bug-label">Errores Visuales</span>
+                    <span className="bug-label">Errores Visuales y de Diseño</span>
                   </div>
                   <div className="bug-dist-item">
                     <span className="bug-count count-logic">{selectedLog.kpis?.retrabajo ?? 0}</span>
@@ -157,8 +154,8 @@ export default function RecentLogs({ logs }: RecentLogsProps) {
                 <strong>{selectedLog.qaAnalyst}</strong>
               </div>
               <div className="meta-block">
-                <span>Entorno Técnico:</span>
-                <span className="platform-tag-large">{selectedLog.platform}</span>
+                <span>Fecha y hora:</span>
+                <strong>{formatDateTime(selectedLog.date)}</strong>
               </div>
             </div>
           </div>

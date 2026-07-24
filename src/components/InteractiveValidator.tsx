@@ -25,7 +25,6 @@ export default function InteractiveValidator({ onAddReview, developers, projects
   const [selectedDevId, setSelectedDevId] = useState(developers[0]?.id || '');
   const [selectedProjectId, setSelectedProjectId] = useState(projects[0]?.id || '');
   const [taskName, setTaskName] = useState('');
-  const [platform, setPlatform] = useState<'Bubble' | 'FlutterFlow' | 'Make' | 'Zapier' | 'Retool'>('Bubble');
   const [notes, setNotes] = useState('');
 
   // Update selected IDs when props load
@@ -100,8 +99,7 @@ export default function InteractiveValidator({ onAddReview, developers, projects
     const newReview: DeveloperReview = {
       id: `REV-2026-${Math.floor(100 + Math.random() * 900)}`,
       taskName,
-      platform,
-      date: new Date().toISOString().split('T')[0],
+      date: new Date().toISOString(),
       score: finalScore,
       status,
       kpis: {
@@ -147,36 +145,19 @@ export default function InteractiveValidator({ onAddReview, developers, projects
         </div>
 
         <form onSubmit={handleSubmit} className="validator-form">
-          <div className="form-row-2">
-            <div className="form-group">
-              <label htmlFor="val-dev">Desarrollador a Calificar</label>
-              <select
-                id="val-dev"
-                value={selectedDevId}
-                onChange={(e) => setSelectedDevId(e.target.value)}
-              >
-                {developers.map((dev) => (
-                  <option key={dev.id} value={dev.id}>
-                    {dev.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="val-platform">Entorno / Plataforma</label>
-              <select
-                id="val-platform"
-                value={platform}
-                onChange={(e) => setPlatform(e.target.value as any)}
-              >
-                <option value="Bubble">Bubble.io</option>
-                <option value="FlutterFlow">FlutterFlow</option>
-                <option value="Make">Make (Integromat)</option>
-                <option value="Zapier">Zapier</option>
-                <option value="Retool">Retool</option>
-              </select>
-            </div>
+          <div className="form-group">
+            <label htmlFor="val-dev">Desarrollador a Calificar</label>
+            <select
+              id="val-dev"
+              value={selectedDevId}
+              onChange={(e) => setSelectedDevId(e.target.value)}
+            >
+              {developers.map((dev) => (
+                <option key={dev.id} value={dev.id}>
+                  {dev.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="form-group">
@@ -250,7 +231,7 @@ export default function InteractiveValidator({ onAddReview, developers, projects
               </div>
 
               <div className="counter-box">
-                <span className="counter-label text-gradient" style={{color: 'var(--color-danger)'}}>Errores Visuales</span>
+                <span className="counter-label text-gradient" style={{color: 'var(--color-danger)'}}>Errores Visuales y de Diseño</span>
                 <div className="counter-actions">
                   <button type="button" onClick={() => setErroresVisuales(Math.max(0, erroresVisuales - 1))}>-</button>
                   <span className="counter-value">{erroresVisuales}</span>

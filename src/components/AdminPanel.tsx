@@ -352,20 +352,17 @@ export default function AdminPanel() {
 
               <form onSubmit={handleUserSubmit} className="admin-form">
                 <div className="form-group">
-                  <label htmlFor="username">Nombre de Usuario (Yopmail)</label>
-                  <div className="input-with-addon">
-                    <input
-                      type="text"
-                      id="username"
-                      name="username"
-                      placeholder="ej. juan.perez"
-                      value={userFormData.username}
-                      onChange={handleUserChange}
-                      required
-                      disabled={!!editingUser}
-                    />
-                    <span className="addon">@yopmail.com</span>
-                  </div>
+                  <label htmlFor="username">Nombre de Usuario</label>
+                  <input
+                    type="text"
+                    id="username"
+                    name="username"
+                    placeholder="ej. juan.perez"
+                    value={userFormData.username}
+                    onChange={handleUserChange}
+                    required
+                    disabled={!!editingUser}
+                  />
                 </div>
 
                 <div className="form-group">
@@ -468,7 +465,6 @@ export default function AdminPanel() {
                         <tr key={user.id} className={editingUser?.id === user.id ? 'row-editing' : ''}>
                           <td>
                             <span className="username-cell">{user.username}</span>
-                            <small className="email-hint">@yopmail.com</small>
                           </td>
                           <td>{user.full_name || <em className="text-muted">Sin nombre</em>}</td>
                           <td>

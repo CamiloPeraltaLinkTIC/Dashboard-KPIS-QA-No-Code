@@ -79,6 +79,7 @@ create table if not exists public.nocode_kpis (
   calidad_visual integer check (calidad_visual >= 0 and calidad_visual <= 100),
   errores_visuales integer default 0,
   retrabajo integer default 0,
+  details text,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   month text not null
 );
@@ -89,7 +90,8 @@ alter table public.nocode_kpis
   add column if not exists cumplimiento_dod integer check (cumplimiento_dod >= 0 and cumplimiento_dod <= 100),
   add column if not exists calidad_visual integer check (calidad_visual >= 0 and calidad_visual <= 100),
   add column if not exists errores_visuales integer default 0,
-  add column if not exists retrabajo integer default 0;
+  add column if not exists retrabajo integer default 0,
+  add column if not exists details text;
 
 alter table public.nocode_kpis enable row level security;
 
