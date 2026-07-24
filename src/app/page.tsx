@@ -37,23 +37,14 @@ export default function DashboardHome() {
         let devQuery = supabase.from('nocode_profiles').select('*').in('role', ['dev', 'Developer', 'desarrollador']);
         
         const isDev = profile.role === 'dev' || profile.role === 'Developer';
-        const isQA = profile.role === 'QA';
 
         if (isDev) {
+          // El dev solo se ve a sí mismo
           devQuery = devQuery.eq('id', profile.id);
-        } else if (isQA) {
-          const { data: assignments } = await supabase
-            .from('nocode_project_assignments')
-            .select('developer_id')
-            .eq('qa_id', profile.id);
-          const devIds = assignments?.map(a => a.developer_id) || [];
-          if (devIds.length > 0) {
-            devQuery = devQuery.in('id', devIds);
-          } else {
-            devQuery = devQuery.eq('id', '00000000-0000-0000-0000-000000000000');
-          }
         }
-        
+        // Para QA no aplicamos filtro extra: la RLS ya limita a los devs asignados
+        // (nocode_profiles.assigned_qa_id = QA). Para leader/admin, la RLS permite ver todos.
+
         const { data: devsData, error: devsError } = await devQuery;
         if (devsError || !devsData) return;
 
@@ -134,18 +125,35 @@ export default function DashboardHome() {
         });
 
         setDevelopers(realDevelopers);
-        // El filtro (Header, stats, etc.) trabaja siempre con el NOMBRE del dev, no el id
+        // El filtro (Header, stats, etc.) trabaja siempre con el NOMBRE del dev, no el id.
+        // Uso actualización funcional para no leer un valor obsoleto durante el auto-refresco.
         if (isDev && realDevelopers.length > 0) {
           setSelectedDeveloper(realDevelopers[0].name);
-        } else if (selectedDeveloper !== 'All' && !realDevelopers.some(d => d.name === selectedDeveloper)) {
-          setSelectedDeveloper('All');
+        } else {
+          setSelectedDeveloper((prev) =>
+            prev !== 'All' && !realDevelopers.some((d) => d.name === prev) ? 'All' : prev
+          );
         }
       } catch (e) {
         console.error('Error fetching real data:', e);
       }
     };
-    
+
     fetchRealData();
+
+    // Auto-actualización sin necesidad de cerrar sesión:
+    // al volver a la pestaña (focus/visibilidad) y periódicamente cada 30s.
+    const onFocus = () => fetchRealData();
+    const onVisible = () => { if (document.visibilityState === 'visible') fetchRealData(); };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisible);
+    const intervalId = setInterval(fetchRealData, 30000);
+
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisible);
+      clearInterval(intervalId);
+    };
   }, [profile]);
 
   const handleAddReview = async (devId: string, projectId: string, newReview: DeveloperReview) => {

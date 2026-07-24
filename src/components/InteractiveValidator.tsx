@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { defaultRuleCategories, DeveloperReview } from '../data/mockData';
+import { DeveloperReview } from '../data/mockData';
 import { useAuth } from '@/components/AuthProvider';
 
 interface DeveloperDropdownItem {
@@ -40,9 +40,6 @@ export default function InteractiveValidator({ onAddReview, developers, projects
     }
   }, [projects]);
 
-  // Rules Checklist state
-  const [rulesState, setRulesState] = useState(defaultRuleCategories);
-  
   // KPI state
   const [pixelPerfect, setPixelPerfect] = useState(100);
   const [cumplimientoDod, setCumplimientoDod] = useState(100);
@@ -50,30 +47,11 @@ export default function InteractiveValidator({ onAddReview, developers, projects
   const [erroresVisuales, setErroresVisuales] = useState(0);
   const [retrabajo, setRetrabajo] = useState(0);
 
-  const toggleRule = (categoryIndex: number, ruleIndex: number) => {
-    const updated = [...rulesState];
-    updated[categoryIndex].rules[ruleIndex].passed = !updated[categoryIndex].rules[ruleIndex].passed;
-    setRulesState(updated);
-  };
-
+  // El score se calcula a partir de los KPIs: promedio de los porcentajes menos penalizaciones
   const calculateScore = () => {
-    let totalWeight = 0;
-    let passedWeight = 0;
-
-    rulesState.forEach((cat) => {
-      cat.rules.forEach((rule) => {
-        const weightVal = rule.weight === 'high' ? 3 : rule.weight === 'medium' ? 2 : 1;
-        totalWeight += weightVal;
-        if (rule.passed) {
-          passedWeight += weightVal;
-        }
-      });
-    });
-
+    const baseScore = Math.round((pixelPerfect + cumplimientoDod + calidadVisual) / 3);
     const scoreDeduction = (erroresVisuales * 2) + (retrabajo * 5);
-    const baseScore = Math.round((passedWeight / totalWeight) * 100);
-    const finalScore = Math.max(0, baseScore - scoreDeduction);
-    return finalScore;
+    return Math.max(0, baseScore - scoreDeduction);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -127,7 +105,6 @@ export default function InteractiveValidator({ onAddReview, developers, projects
     setCalidadVisual(100);
     setErroresVisuales(0);
     setRetrabajo(0);
-    setRulesState(JSON.parse(JSON.stringify(defaultRuleCategories)));
 
     const selectedDevName = developers.find(d => d.id === selectedDevId)?.name || 'Desarrollador';
     alert(`¡Evaluación registrada con éxito!\nDesarrollador: ${selectedDevName}\nScore: ${newReview.score}/100\nEstado: ${newReview.status.toUpperCase()}`);
@@ -250,6 +227,13 @@ export default function InteractiveValidator({ onAddReview, developers, projects
             </div>
           </div>
 
+          <div className="score-live-row">
+            <span className="score-lbl">Score Estimado</span>
+            <span className={`score-val ${scorePreview >= 85 ? 'text-success' : scorePreview >= 75 ? 'text-warning' : 'text-danger'}`}>
+              {scorePreview}/100
+            </span>
+          </div>
+
           <div className="form-group">
             <label htmlFor="val-notes">Observaciones de Calidad / Retroalimentación</label>
             <textarea
@@ -267,61 +251,28 @@ export default function InteractiveValidator({ onAddReview, developers, projects
         </form>
       </div>
 
-      {/* Checklist Rules Evaluation */}
-      <div className="checklist-card glass">
-        <div className="checklist-header">
-          <div className="title-group">
-            <h3>Lista de Chequeo Técnico</h3>
-            <p>Evalúa el cumplimiento de directrices de desarrollo que afectan la puntuación</p>
-          </div>
-          <div className="score-live-indicator">
-            <span className="score-lbl">Score Estimado</span>
-            <span className={`score-val ${scorePreview >= 85 ? 'text-success' : scorePreview >= 75 ? 'text-warning' : 'text-danger'}`}>
-              {scorePreview}/100
-            </span>
-          </div>
-        </div>
-
-        <div className="checklist-body">
-          {rulesState.map((cat, catIdx) => (
-            <div key={catIdx} className="category-group">
-              <h4 className="category-title">{cat.category}</h4>
-              <div className="rules-list">
-                {cat.rules.map((rule, ruleIdx) => (
-                  <div
-                    key={rule.id}
-                    className={`rule-item ${rule.passed ? 'rule-passed' : ''}`}
-                    onClick={() => toggleRule(catIdx, ruleIdx)}
-                  >
-                    <div className="checkbox-wrapper">
-                      <div className={`custom-checkbox ${rule.passed ? 'checked' : ''}`}>
-                        {rule.passed && (
-                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        )}
-                      </div>
-                    </div>
-                    <div className="rule-text-block">
-                      <p className="rule-text">{rule.text}</p>
-                      <span className={`weight-tag weight-${rule.weight}`}>
-                        Peso: {rule.weight === 'high' ? 'Alto' : rule.weight === 'medium' ? 'Medio' : 'Bajo'}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
       <style jsx>{`
         .validator-grid {
           display: grid;
-          grid-template-columns: 1fr 1.2fr;
+          grid-template-columns: minmax(0, 680px);
+          justify-content: center;
           gap: 24px;
           align-items: start;
+        }
+
+        .score-live-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          padding: 12px 16px;
+          border: 1px solid var(--border-color);
+          border-radius: var(--radius-sm);
+          background: rgba(255, 255, 255, 0.02);
+        }
+
+        [data-theme="light"] .score-live-row {
+          background: rgba(0, 0, 0, 0.02);
         }
 
         @media (max-width: 960px) {
@@ -330,7 +281,7 @@ export default function InteractiveValidator({ onAddReview, developers, projects
           }
         }
 
-        .validator-card, .checklist-card {
+        .validator-card {
           padding: 24px;
           border-radius: var(--radius-md);
           display: flex;
@@ -338,13 +289,13 @@ export default function InteractiveValidator({ onAddReview, developers, projects
           gap: 20px;
         }
 
-        .card-header h3, .checklist-header h3 {
+        .card-header h3 {
           font-size: 1.1rem;
           color: var(--text-primary);
           margin-bottom: 2px;
         }
 
-        .card-header p, .checklist-header p {
+        .card-header p {
           font-size: 0.78rem;
           color: var(--text-secondary);
         }
@@ -391,12 +342,6 @@ export default function InteractiveValidator({ onAddReview, developers, projects
         .validator-form textarea:focus {
           border-color: var(--color-primary);
           box-shadow: 0 0 0 3px var(--border-focus);
-        }
-
-        .form-row-2 {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 16px;
         }
 
         .bug-counter-section {
@@ -499,23 +444,9 @@ export default function InteractiveValidator({ onAddReview, developers, projects
           transform: translateY(1px);
         }
 
-        /* Checklist Card */
-        .checklist-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          border-bottom: 1px solid var(--border-color);
-          padding-bottom: 14px;
-        }
-
-        .score-live-indicator {
-          display: flex;
-          flex-direction: column;
-          align-items: flex-end;
-        }
-
+        /* Indicador de Score */
         .score-lbl {
-          font-size: 0.68rem;
+          font-size: 0.72rem;
           color: var(--text-muted);
           text-transform: uppercase;
           font-weight: 600;
@@ -529,111 +460,6 @@ export default function InteractiveValidator({ onAddReview, developers, projects
         .text-success { color: var(--color-success); }
         .text-warning { color: var(--color-warning); }
         .text-danger { color: var(--color-danger); }
-
-        .checklist-body {
-          display: flex;
-          flex-direction: column;
-          gap: 20px;
-          max-height: 480px;
-          overflow-y: auto;
-          padding-right: 6px;
-        }
-
-        .category-group {
-          display: flex;
-          flex-direction: column;
-          gap: 10px;
-        }
-
-        .category-title {
-          font-size: 0.82rem;
-          color: var(--color-primary);
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-          border-bottom: 1px solid var(--border-color);
-          padding-bottom: 4px;
-        }
-
-        .rules-list {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-        }
-
-        .rule-item {
-          display: flex;
-          align-items: flex-start;
-          gap: 12px;
-          padding: 10px 12px;
-          background: rgba(255, 255, 255, 0.02);
-          border: 1px solid var(--border-color);
-          border-radius: var(--radius-xs);
-          cursor: pointer;
-          transition: all 0.2s ease;
-        }
-
-        [data-theme="light"] .rule-item {
-          background: rgba(0, 0, 0, 0.01);
-        }
-
-        .rule-item:hover {
-          background: rgba(255, 255, 255, 0.05);
-          border-color: rgba(255, 255, 255, 0.15);
-        }
-
-        [data-theme="light"] .rule-item:hover {
-          background: rgba(0, 0, 0, 0.03);
-          border-color: rgba(0, 0, 0, 0.12);
-        }
-
-        .rule-passed {
-          border-color: hsla(var(--hue-success), 70%, 45%, 0.3) !important;
-          background: hsla(var(--hue-success), 70%, 45%, 0.03) !important;
-        }
-
-        .checkbox-wrapper {
-          margin-top: 2px;
-        }
-
-        .custom-checkbox {
-          width: 18px;
-          height: 18px;
-          border-radius: 4px;
-          border: 2px solid var(--text-muted);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          transition: all 0.2s ease;
-          color: white;
-        }
-
-        .custom-checkbox.checked {
-          border-color: var(--color-success);
-          background-color: var(--color-success);
-        }
-
-        .rule-text-block {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-        }
-
-        .rule-text {
-          font-size: 0.8rem;
-          line-height: 1.35;
-          color: var(--text-primary);
-        }
-
-        .weight-tag {
-          font-size: 0.65rem;
-          font-weight: 600;
-          text-transform: uppercase;
-          width: fit-content;
-        }
-
-        .weight-high { color: var(--color-danger); }
-        .weight-medium { color: var(--color-warning); }
-        .weight-low { color: var(--text-muted); }
       `}</style>
     </div>
   );

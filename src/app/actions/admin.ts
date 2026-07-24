@@ -201,6 +201,13 @@ export async function createAssignment(formData: FormData) {
       return { success: false, error: `Error al crear asignación: ${error.message}` };
     }
 
+    // La RLS controla la visibilidad del QA por `assigned_qa_id`. Alineamos ese campo
+    // con la asignación para que el QA vea al desarrollador (y sus KPIs) sin cerrar sesión.
+    await supabaseAdmin
+      .from('nocode_profiles')
+      .update({ assigned_qa_id: qaId })
+      .eq('id', developerId);
+
     return { success: true, message: 'Asignación creada exitosamente.' };
   } catch (error: any) {
     return { success: false, error: error.message };
