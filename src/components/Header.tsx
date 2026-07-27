@@ -211,7 +211,7 @@ export default function Header({
           </button>
 
           {notificationsOpen && (
-            <div className="notifications-dropdown glass">
+            <div className="notifications-dropdown">
               <div className="dropdown-header">
                 <h3>Últimos Eventos de QA</h3>
                 <button className="clear-btn" onClick={() => setNotificationsOpen(false)}>Cerrar</button>
@@ -435,9 +435,11 @@ export default function Header({
           right: 0;
           width: 320px;
           border-radius: var(--radius-md);
+          border: 1px solid var(--border-color);
           box-shadow: var(--shadow-lg);
           padding: 16px;
           z-index: 120;
+          background: var(--bg-elevated);
           animation: dropdownFade 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
 

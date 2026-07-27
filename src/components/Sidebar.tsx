@@ -166,7 +166,7 @@ export default function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
             <span className="pulse-indicator"></span>
           </div>
           <div className="footer-card-text">
-            <h4>{role === 'dev' ? 'Dev Portal Active' : (role === 'admin' || role === 'Administrator' ? 'Admin Portal' : role === 'leader' ? 'Leader View Active' : 'QA Auditor Active')}</h4>
+            <h4>{role === 'dev' ? 'Dev Portal Activo' : (role === 'admin' || role === 'Administrator' ? 'Admin Portal' : role === 'leader' ? 'Leader View Active' : 'QA Auditor Active')}</h4>
             <p>{role === 'dev' ? 'Métricas de desarrollo' : (role === 'admin' || role === 'Administrator' ? 'Administración' : role === 'leader' ? 'Métricas de equipo' : 'Módulo de Calificaciones')}</p>
           </div>
         </div>

@@ -15,6 +15,7 @@
   --bg-app: #07070a;
   --bg-card: rgba(13, 13, 20, 0.6);
   --bg-card-hover: rgba(20, 20, 30, 0.8);
+  --bg-elevated: #14141c;
   --border-color: rgba(255, 255, 255, 0.08);
   --border-focus: hsla(var(--hue-primary), 80%, 60%, 0.4);
   
@@ -46,6 +47,7 @@
   --bg-app: #f4f6f9;
   --bg-card: rgba(255, 255, 255, 0.75);
   --bg-card-hover: rgba(255, 255, 255, 0.9);
+  --bg-elevated: #ffffff;
   --border-color: rgba(0, 0, 0, 0.08);
   --border-focus: hsla(var(--hue-primary), 80%, 50%, 0.3);
   
