@@ -24,11 +24,12 @@ interface InteractiveValidatorProps {
   developers: DeveloperDropdownItem[];
   projects: ProjectDropdownItem[];
   assignments: ProjectAssignment[];
+  preselectedDevId?: string;
 }
 
-export default function InteractiveValidator({ onAddReview, developers, projects, assignments }: InteractiveValidatorProps) {
+export default function InteractiveValidator({ onAddReview, developers, projects, assignments, preselectedDevId }: InteractiveValidatorProps) {
   const { profile } = useAuth();
-  const [selectedDevId, setSelectedDevId] = useState(developers[0]?.id || '');
+  const [selectedDevId, setSelectedDevId] = useState(preselectedDevId || developers[0]?.id || '');
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [taskName, setTaskName] = useState('');
   const [notes, setNotes] = useState('');
@@ -52,6 +53,14 @@ export default function InteractiveValidator({ onAddReview, developers, projects
       setSelectedDevId(developers[0].id);
     }
   }, [developers]);
+
+  // Sincroniza con el filtro global de desarrollador (Header): al cambiarlo
+  // desde otra pestaña, este formulario debe preseleccionar el mismo dev.
+  useEffect(() => {
+    if (preselectedDevId) {
+      setSelectedDevId(preselectedDevId);
+    }
+  }, [preselectedDevId]);
 
   // Mantiene el proyecto seleccionado sincronizado con los proyectos
   // disponibles para el dev actual (cambia al elegir otro desarrollador).

@@ -329,6 +329,17 @@ export default function DashboardHome() {
     return developers.find(d => d.id === activeProfileId) || developers[0];
   }, [developers, activeProfileId]);
 
+  // Mantiene "Perfiles Técnicos" sincronizado con el filtro global del Header:
+  // si se elige un dev específico arriba, este tab debe abrir directamente su perfil.
+  React.useEffect(() => {
+    if (selectedDeveloper !== 'All' && selectedDeveloperData) {
+      setActiveProfileId(selectedDeveloperData.id);
+    }
+  }, [selectedDeveloper, selectedDeveloperData]);
+
+  // Id del dev a preseleccionar en "Calificar Desarrollador" según el filtro global
+  const preselectedDevId = selectedDeveloper !== 'All' ? selectedDeveloperData?.id : undefined;
+
   return (
     <div className="dashboard-layout">
       {/* Sidebar Navigation */}
@@ -450,7 +461,7 @@ export default function DashboardHome() {
 
           {currentTab === 'validator' && (
             <div className="view-pane animate-fade-in">
-              <InteractiveValidator onAddReview={handleAddReview} developers={developersDropdown} projects={allProjects} assignments={projectAssignments} />
+              <InteractiveValidator onAddReview={handleAddReview} developers={developersDropdown} projects={allProjects} assignments={projectAssignments} preselectedDevId={preselectedDevId} />
             </div>
           )}
 
@@ -470,7 +481,7 @@ export default function DashboardHome() {
                     {developers.map((d) => (
                       <button
                         key={d.id}
-                        onClick={() => setActiveProfileId(d.id)}
+                        onClick={() => { setActiveProfileId(d.id); setSelectedDeveloper(d.name); }}
                         className={`dev-profile-tab ${activeProfileId === d.id ? 'active' : ''}`}
                       >
                         <span className="tab-avatar">{d.avatar}</span>
