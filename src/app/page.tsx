@@ -544,17 +544,36 @@ export default function DashboardHome() {
                           </span>
                         </div>
                         <div className="profile-hero-quickstats">
-                          <div className="quick-item">
-                            <span>Evaluaciones</span>
+                          <div className="quick-item tone-primary inspect-corners" style={{ animationDelay: '0ms' }}>
+                            <span className="quick-item-icon">
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+                                <rect width="8" height="4" x="8" y="2" rx="1" ry="1" />
+                                <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+                                <path d="M9 12h6M9 16h6" />
+                              </svg>
+                            </span>
                             <strong>{activeProfileData.totalTasks}</strong>
+                            <span className="quick-item-label">Evaluaciones</span>
                           </div>
-                          <div className="quick-item">
-                            <span>Aprobados 1er Intento</span>
+                          <div className="quick-item tone-success inspect-corners" style={{ animationDelay: '60ms' }}>
+                            <span className="quick-item-icon">
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="m9 11 3 3L22 4" />
+                                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                              </svg>
+                            </span>
                             <strong>{activeProfileData.approvedFirstTry}</strong>
+                            <span className="quick-item-label">Aprobados 1er Intento</span>
                           </div>
-                          <div className="quick-item">
-                            <span>Retrabajo</span>
+                          <div className="quick-item tone-warning inspect-corners" style={{ animationDelay: '120ms' }}>
+                            <span className="quick-item-icon">
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                                <path d="M3 3v5h5" />
+                              </svg>
+                            </span>
                             <strong>{activeProfileData.kpisTotal.retrabajo}</strong>
+                            <span className="quick-item-label">Retrabajo</span>
                           </div>
                         </div>
                       </div>
@@ -845,27 +864,99 @@ export default function DashboardHome() {
         }
 
         .quick-item {
+          position: relative;
           display: flex;
           flex-direction: column;
           align-items: center;
-          padding: 10px 16px;
-          background: rgba(255, 255, 255, 0.02);
+          gap: 6px;
+          padding: 14px 18px;
+          background:
+            linear-gradient(160deg, var(--tone-tint, transparent), var(--bg-app) 65%),
+            rgba(255, 255, 255, 0.02);
           border: 1px solid var(--border-color);
           border-radius: var(--radius-sm);
-          min-width: 90px;
+          min-width: 104px;
+          opacity: 0;
+          animation: quickItemIn 0.45s ease-out forwards;
+          transition: transform 0.2s ease, border-color 0.2s ease;
         }
 
-        .quick-item span {
-          font-size: 0.65rem;
-          color: var(--text-muted);
-          text-transform: uppercase;
-          font-weight: 600;
+        [data-theme="light"] .quick-item {
+          background:
+            linear-gradient(160deg, var(--tone-tint, transparent), rgba(0, 0, 0, 0.01) 65%),
+            rgba(0, 0, 0, 0.01);
+        }
+
+        .quick-item:hover {
+          transform: translateY(-2px);
+        }
+
+        @keyframes quickItemIn {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .quick-item {
+            animation: none !important;
+            opacity: 1 !important;
+          }
+        }
+
+        .quick-item.tone-primary {
+          --tone-tint: hsla(var(--hue-primary), 85%, 64%, 0.1);
+          border-color: hsla(var(--hue-primary), 85%, 64%, 0.22);
+        }
+
+        .quick-item.tone-success {
+          --tone-tint: hsla(var(--hue-success), 70%, 45%, 0.1);
+          border-color: hsla(var(--hue-success), 70%, 45%, 0.22);
+        }
+
+        .quick-item.tone-warning {
+          --tone-tint: hsla(var(--hue-warning), 85%, 55%, 0.1);
+          border-color: hsla(var(--hue-warning), 85%, 55%, 0.22);
+        }
+
+        .quick-item-icon {
+          width: 30px;
+          height: 30px;
+          border-radius: var(--radius-xs);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .tone-primary .quick-item-icon {
+          color: var(--color-primary);
+          background: linear-gradient(135deg, hsla(var(--hue-primary), 85%, 64%, 0.28), hsla(var(--hue-primary), 85%, 64%, 0.08));
+        }
+
+        .tone-success .quick-item-icon {
+          color: var(--color-success);
+          background: linear-gradient(135deg, hsla(var(--hue-success), 70%, 45%, 0.28), hsla(var(--hue-success), 70%, 45%, 0.08));
+        }
+
+        .tone-warning .quick-item-icon {
+          color: var(--color-warning);
+          background: linear-gradient(135deg, hsla(var(--hue-warning), 85%, 55%, 0.28), hsla(var(--hue-warning), 85%, 55%, 0.08));
         }
 
         .quick-item strong {
-          font-size: 1.15rem;
+          font-family: var(--font-display);
+          font-size: 1.3rem;
           color: var(--text-primary);
-          font-weight: 750;
+          font-weight: 700;
+          line-height: 1;
+        }
+
+        .quick-item-label {
+          font-size: 0.64rem;
+          color: var(--text-muted);
+          text-transform: uppercase;
+          letter-spacing: 0.02em;
+          font-weight: 600;
+          text-align: center;
         }
 
         .profile-dashboard-grid {

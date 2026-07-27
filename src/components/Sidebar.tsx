@@ -170,6 +170,8 @@ export default function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
             <p>{role === 'dev' ? 'Métricas de desarrollo' : (role === 'admin' || role === 'Administrator' ? 'Administración' : role === 'leader' ? 'Métricas de equipo' : 'Módulo de Calificaciones')}</p>
           </div>
         </div>
+
+        <p className="sidebar-credit">by <span className="text-gradient">LinkTIC</span></p>
       </div>
 
       <style jsx>{`
@@ -344,6 +346,16 @@ export default function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
         .sidebar-footer {
           padding: 20px;
           border-top: 1px solid var(--border-color);
+        }
+
+        .sidebar-credit {
+          margin-top: 14px;
+          text-align: center;
+          font-family: var(--font-mono);
+          font-size: 0.68rem;
+          font-weight: 600;
+          letter-spacing: 0.03em;
+          color: var(--text-muted);
         }
 
         .footer-card {
