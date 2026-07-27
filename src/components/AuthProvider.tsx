@@ -1,9 +1,10 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { User, Session } from '@supabase/supabase-js';
 import Login from './Login';
+import AuthTransition from './AuthTransition';
 
 type Profile = {
   id: string;
@@ -32,6 +33,29 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [transitionType, setTransitionType] = useState<'login' | 'logout' | null>(null);
+  const prevUserRef = useRef<User | null>(null);
+  const hasResolvedOnceRef = useRef(false);
+
+  // Detecta transiciones reales de sesión (no el estado inicial al cargar
+  // la página) para disparar la animación de acceso/salida correspondiente.
+  useEffect(() => {
+    if (loading) return;
+
+    if (!hasResolvedOnceRef.current) {
+      hasResolvedOnceRef.current = true;
+      prevUserRef.current = user;
+      return;
+    }
+
+    const prevUser = prevUserRef.current;
+    if (!prevUser && user) {
+      setTransitionType('login');
+    } else if (prevUser && !user) {
+      setTransitionType('logout');
+    }
+    prevUserRef.current = user;
+  }, [user, loading]);
 
   useEffect(() => {
     // Initial session fetch
@@ -115,24 +139,26 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     await supabase.auth.signOut();
   };
 
-  // If loading session, show blank or simple spinner
-  if (loading) {
-    return (
-      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-app)', color: 'var(--text-primary)' }}>
-        Cargando sesión...
-      </div>
-    );
-  }
-
-  // If not logged in, show Login UI instead of children
-  if (!user) {
-    return <Login />;
-  }
-
-  // Logged in
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signOut }}>
-      {children}
-    </AuthContext.Provider>
+    <>
+      {loading ? (
+        // Loading session: blank or simple spinner
+        <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-app)', color: 'var(--text-primary)' }}>
+          Cargando sesión...
+        </div>
+      ) : !user ? (
+        // Not logged in: show Login UI instead of children
+        <Login />
+      ) : (
+        // Logged in
+        <AuthContext.Provider value={{ user, profile, loading, signOut }}>
+          {children}
+        </AuthContext.Provider>
+      )}
+
+      {transitionType && (
+        <AuthTransition type={transitionType} onDone={() => setTransitionType(null)} />
+      )}
+    </>
   );
 }
