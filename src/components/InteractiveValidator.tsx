@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { DeveloperReview } from '../data/mockData';
 import { useAuth } from '@/components/AuthProvider';
 
@@ -14,18 +14,32 @@ interface ProjectDropdownItem {
   name: string;
 }
 
+interface ProjectAssignment {
+  developer_id: string;
+  project_id: string;
+}
+
 interface InteractiveValidatorProps {
   onAddReview: (devId: string, projectId: string, review: DeveloperReview) => void;
   developers: DeveloperDropdownItem[];
   projects: ProjectDropdownItem[];
+  assignments: ProjectAssignment[];
 }
 
-export default function InteractiveValidator({ onAddReview, developers, projects }: InteractiveValidatorProps) {
+export default function InteractiveValidator({ onAddReview, developers, projects, assignments }: InteractiveValidatorProps) {
   const { profile } = useAuth();
   const [selectedDevId, setSelectedDevId] = useState(developers[0]?.id || '');
-  const [selectedProjectId, setSelectedProjectId] = useState(projects[0]?.id || '');
+  const [selectedProjectId, setSelectedProjectId] = useState('');
   const [taskName, setTaskName] = useState('');
   const [notes, setNotes] = useState('');
+
+  // Solo los proyectos enlazados al desarrollador seleccionado
+  const availableProjects = useMemo(() => {
+    const assignedProjectIds = new Set(
+      assignments.filter((a) => a.developer_id === selectedDevId).map((a) => a.project_id)
+    );
+    return projects.filter((p) => assignedProjectIds.has(p.id));
+  }, [projects, assignments, selectedDevId]);
 
   // Update selected IDs when props load
   useEffect(() => {
@@ -34,11 +48,17 @@ export default function InteractiveValidator({ onAddReview, developers, projects
     }
   }, [developers]);
 
+  // Mantiene el proyecto seleccionado sincronizado con los proyectos
+  // disponibles para el dev actual (cambia al elegir otro desarrollador).
   useEffect(() => {
-    if (projects.length > 0 && !selectedProjectId) {
-      setSelectedProjectId(projects[0].id);
+    if (availableProjects.length > 0) {
+      if (!availableProjects.some((p) => p.id === selectedProjectId)) {
+        setSelectedProjectId(availableProjects[0].id);
+      }
+    } else if (selectedProjectId) {
+      setSelectedProjectId('');
     }
-  }, [projects]);
+  }, [availableProjects]);
 
   // KPI state
   const [pixelPerfect, setPixelPerfect] = useState(100);
@@ -144,13 +164,20 @@ export default function InteractiveValidator({ onAddReview, developers, projects
               value={selectedProjectId}
               onChange={(e) => setSelectedProjectId(e.target.value)}
               required
+              disabled={availableProjects.length === 0}
             >
-              <option value="">-- Selecciona Proyecto --</option>
-              {projects.map((proj) => (
-                <option key={proj.id} value={proj.id}>
-                  {proj.name}
-                </option>
-              ))}
+              {availableProjects.length === 0 ? (
+                <option value="">Este desarrollador no tiene proyectos enlazados</option>
+              ) : (
+                <>
+                  <option value="">-- Selecciona Proyecto --</option>
+                  {availableProjects.map((proj) => (
+                    <option key={proj.id} value={proj.id}>
+                      {proj.name}
+                    </option>
+                  ))}
+                </>
+              )}
             </select>
           </div>
 

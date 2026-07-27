@@ -26,6 +26,7 @@ export default function DashboardHome() {
   
   const [developers, setDevelopers] = useState<DeveloperStat[]>([]);
   const [allProjects, setAllProjects] = useState<{ id: string; name: string }[]>([]);
+  const [projectAssignments, setProjectAssignments] = useState<{ developer_id: string; project_id: string }[]>([]);
 
   // Fetch real data from Supabase
   React.useEffect(() => {
@@ -56,8 +57,17 @@ export default function DashboardHome() {
         const devIds = devsData.map(d => d.id);
         if (devIds.length === 0) {
           setDevelopers([]);
+          setProjectAssignments([]);
           return;
         }
+
+        // 1.5 Fetch project assignments (developer <-> proyecto) para acotar
+        // el desplegable de "Proyecto" a los proyectos enlazados a cada dev.
+        const { data: assignmentsData } = await supabase
+          .from('nocode_project_assignments')
+          .select('developer_id, project_id')
+          .in('developer_id', devIds);
+        setProjectAssignments(assignmentsData || []);
 
         // 2. Fetch KPIs for these developers
         const { data: kpisData } = await supabase
@@ -440,7 +450,7 @@ export default function DashboardHome() {
 
           {currentTab === 'validator' && (
             <div className="view-pane animate-fade-in">
-              <InteractiveValidator onAddReview={handleAddReview} developers={developersDropdown} projects={allProjects} />
+              <InteractiveValidator onAddReview={handleAddReview} developers={developersDropdown} projects={allProjects} assignments={projectAssignments} />
             </div>
           )}
 
