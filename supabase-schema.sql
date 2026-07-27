@@ -34,6 +34,7 @@ alter table public.nocode_profiles enable row level security;
 -- Drop existing policies to allow re-running the script
 drop policy if exists "Users can view their own nocode profile." on public.nocode_profiles;
 drop policy if exists "QAs can view their assigned devs." on public.nocode_profiles;
+drop policy if exists "Devs can view QAs who evaluated them." on public.nocode_profiles;
 drop policy if exists "Leaders and admins can view all profiles." on public.nocode_profiles;
 drop policy if exists "Users can update their own nocode profile." on public.nocode_profiles;
 drop policy if exists "Users can insert their own nocode profile." on public.nocode_profiles;
@@ -132,10 +133,31 @@ create policy "QA can insert nocode KPIs for assigned devs."
 create policy "QA can update nocode KPIs."
   on public.nocode_kpis for update
   to authenticated
-  using ( 
+  using (
     auth.uid() = qa_analyst_id AND
     public.get_auth_user_role() = 'QA'
   );
+
+-- Función SECURITY DEFINER (igual patrón que get_auth_user_role): al bypasear RLS
+-- internamente, evita la recursión infinita que se daría si la política de
+-- nocode_profiles consultara nocode_kpis directamente (que a su vez consulta
+-- nocode_profiles en su propia política).
+create or replace function public.is_qa_of_current_dev(check_qa_id uuid)
+returns boolean as $$
+  select exists (
+    select 1 from public.nocode_kpis
+    where developer_id = auth.uid() and qa_analyst_id = check_qa_id
+  );
+$$ language sql security definer stable;
+
+-- Permite que un dev vea el perfil (username) del/los QA que lo han evaluado,
+-- para poder mostrar el nombre real en vez de "QA" en su historial de auditorías.
+-- Se declara aquí (y no junto a las demás políticas de nocode_profiles) porque
+-- referencia la tabla nocode_kpis, que debe existir ya en este punto del script.
+create policy "Devs can view QAs who evaluated them."
+  on public.nocode_profiles for select
+  to authenticated
+  using ( public.is_qa_of_current_dev(id) );
 
 
 -- Function to handle new user signup and create profile
