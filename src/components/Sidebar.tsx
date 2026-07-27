@@ -299,17 +299,15 @@ export default function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
           flex-shrink: 0;
           background: transparent;
           border: 1px solid transparent;
-          transition: background 0.25s ease, border-color 0.25s ease, transform 0.2s ease, box-shadow 0.25s ease;
+          color: inherit;
+          transition: background 0.25s ease, border-color 0.25s ease, color 0.25s ease, transform 0.2s ease, box-shadow 0.25s ease;
         }
 
         .nav-item:hover .nav-icon-box {
-          background: rgba(255, 255, 255, 0.05);
-          border-color: var(--border-color);
+          background: var(--color-primary-glow);
+          border-color: var(--color-primary);
+          color: var(--color-primary);
           transform: scale(1.05);
-        }
-
-        [data-theme="light"] .nav-item:hover .nav-icon-box {
-          background: rgba(0, 0, 0, 0.03);
         }
 
         .nav-icon-box.active-icon {

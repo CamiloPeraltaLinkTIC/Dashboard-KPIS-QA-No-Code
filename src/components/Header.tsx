@@ -81,17 +81,91 @@ export default function Header({
     }
   };
 
+  const getTabIcon = () => {
+    switch (currentTab) {
+      case 'overview':
+        return (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect width="7" height="9" x="3" y="3" rx="1" />
+            <rect width="7" height="5" x="14" y="3" rx="1" />
+            <rect width="7" height="9" x="14" y="12" rx="1" />
+            <rect width="7" height="5" x="3" y="16" rx="1" />
+          </svg>
+        );
+      case 'metrics':
+        return (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" x2="18" y1="20" y2="10" />
+            <line x1="12" x2="12" y1="20" y2="4" />
+            <line x1="6" x2="6" y1="20" y2="14" />
+          </svg>
+        );
+      case 'validator':
+        return (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m9 12 2 2 4-4" />
+            <path d="M5 7a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z" />
+          </svg>
+        );
+      case 'developers':
+        return (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+        );
+      default:
+        return (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+        );
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    if (status === 'approved') {
+      return (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M20 6 9 17l-5-5" />
+        </svg>
+      );
+    }
+    if (status === 'rejected') {
+      return (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M18 6 6 18M6 6l12 12" />
+        </svg>
+      );
+    }
+    return (
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 6v6l4 2" />
+      </svg>
+    );
+  };
+
   return (
     <header className="header-container glass animate-fade-in">
       <div className="header-titles">
-        <h1>{getTitle()}</h1>
-        <p>{getSubtitle()}</p>
+        <span className="header-tab-icon">{getTabIcon()}</span>
+        <div>
+          <h1>{getTitle()}</h1>
+          <p>{getSubtitle()}</p>
+        </div>
       </div>
 
       <div className="header-actions">
         {/* Developer Filter */}
         <div className="filter-wrapper">
-          <label htmlFor="dev-select">Filtrar por:</label>
+          <svg className="filter-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </svg>
           <select
             id="dev-select"
             value={selectedDeveloper}
@@ -110,12 +184,12 @@ export default function Header({
         {/* Theme Toggle */}
         <button className="icon-btn theme-toggle" onClick={toggleTheme} title="Cambiar Tema" aria-label="Cambiar Tema">
           {theme === 'dark' ? (
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg key="sun" className="theme-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="4" />
               <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
             </svg>
           ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg key="moon" className="theme-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
             </svg>
           )}
@@ -145,7 +219,11 @@ export default function Header({
               <div className="dropdown-content">
                 {recentReviews.length === 0 ? (
                   <div className="notification-item">
-                    <div className="item-marker read"></div>
+                    <div className="item-marker tone-neutral">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+                      </svg>
+                    </div>
                     <div className="item-text">
                       <p>Aún no hay evaluaciones registradas.</p>
                     </div>
@@ -157,7 +235,7 @@ export default function Header({
                       rev.status === 'rejected' ? 'Rechazado' : 'En revisión';
                     return (
                       <div key={rev.id} className={`notification-item ${rev.status === 'rejected' ? 'unread' : ''}`}>
-                        <div className={`item-marker ${rev.status === 'approved' ? 'read' : ''}`}></div>
+                        <div className={`item-marker tone-${rev.status}`}>{getStatusIcon(rev.status)}</div>
                         <div className="item-text">
                           <p><strong>{rev.developerName}</strong> — {rev.taskName}: <strong>{rev.score}/100</strong> ({statusText})</p>
                           <span className={rev.status === 'rejected' ? 'danger-text' : ''}>{formatDateTime(rev.date)}</span>
@@ -173,7 +251,10 @@ export default function Header({
 
         {/* Profile Card */}
         <div className="user-profile">
-          <div className="profile-avatar">{profile?.role?.substring(0, 2).toUpperCase() || 'QA'}</div>
+          <div className="profile-avatar">
+            {profile?.role?.substring(0, 2).toUpperCase() || 'QA'}
+            <span className="profile-status-dot" />
+          </div>
           <div className="profile-info">
             <span className="user-name">{profile?.full_name || profile?.username || 'Usuario'}</span>
             <span className="user-role">{profile?.role === 'leader' ? 'Líder' : (profile?.role === 'admin' || profile?.role === 'Administrator') ? 'Admin' : (profile?.role === 'dev' || profile?.role === 'Developer') ? 'Desarrollador' : 'QA'}</span>
@@ -197,6 +278,25 @@ export default function Header({
           border-radius: var(--radius-md);
           margin-bottom: 24px;
           z-index: 90;
+        }
+
+        .header-titles {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+        }
+
+        .header-tab-icon {
+          width: 42px;
+          height: 42px;
+          border-radius: var(--radius-sm);
+          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: white;
+          background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+          box-shadow: var(--shadow-glow);
         }
 
         .header-titles h1 {
@@ -224,27 +324,36 @@ export default function Header({
           gap: 8px;
           font-size: 0.85rem;
           color: var(--text-secondary);
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid var(--border-color);
+          border-radius: var(--radius-sm);
+          padding: 0 12px 0 10px;
+          transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        [data-theme="light"] .filter-wrapper {
+          background: rgba(0, 0, 0, 0.03);
+        }
+
+        .filter-wrapper:focus-within {
+          border-color: var(--color-primary);
+          box-shadow: 0 0 0 3px var(--color-primary-glow);
+        }
+
+        .filter-icon {
+          color: var(--color-primary);
+          flex-shrink: 0;
         }
 
         .dev-select {
-          background: rgba(255, 255, 255, 0.05);
-          border: 1px solid var(--border-color);
+          background: transparent;
+          border: none;
           color: var(--text-primary);
-          padding: 8px 12px;
-          border-radius: var(--radius-sm);
+          padding: 9px 0;
           font-size: 0.85rem;
           font-weight: 500;
           cursor: pointer;
           outline: none;
-          transition: border-color 0.2s ease;
-        }
-
-        [data-theme="light"] .dev-select {
-          background: rgba(0, 0, 0, 0.03);
-        }
-
-        .dev-select:focus {
-          border-color: var(--color-primary);
         }
 
         .icon-btn {
@@ -267,9 +376,9 @@ export default function Header({
         }
 
         .icon-btn:hover {
-          color: var(--text-primary);
-          background: rgba(255, 255, 255, 0.08);
-          border-color: rgba(255, 255, 255, 0.2);
+          color: var(--color-primary);
+          background: var(--color-primary-glow);
+          border-color: var(--color-primary);
           transform: translateY(-1px);
         }
 
@@ -277,9 +386,19 @@ export default function Header({
           transform: translateY(0);
         }
 
-        [data-theme="light"] .icon-btn:hover {
-          background: rgba(0, 0, 0, 0.05);
-          border-color: rgba(0, 0, 0, 0.15);
+        .theme-icon {
+          animation: themeIconIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        @keyframes themeIconIn {
+          from { opacity: 0; transform: rotate(-45deg) scale(0.6); }
+          to { opacity: 1; transform: rotate(0deg) scale(1); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .theme-icon {
+            animation: none;
+          }
         }
 
         .notification-badge {
@@ -359,6 +478,7 @@ export default function Header({
 
         .notification-item {
           display: flex;
+          align-items: flex-start;
           gap: 10px;
           padding: 8px;
           border-radius: var(--radius-xs);
@@ -378,16 +498,34 @@ export default function Header({
         }
 
         .item-marker {
-          width: 8px;
-          height: 8px;
+          width: 22px;
+          height: 22px;
           border-radius: 50%;
-          background-color: var(--color-primary);
+          display: flex;
+          align-items: center;
+          justify-content: center;
           flex-shrink: 0;
-          margin-top: 5px;
+          margin-top: 1px;
         }
 
-        .item-marker.read {
-          background-color: var(--text-muted);
+        .item-marker.tone-approved {
+          color: var(--color-success);
+          background: hsla(var(--hue-success), 70%, 45%, 0.15);
+        }
+
+        .item-marker.tone-rejected {
+          color: var(--color-danger);
+          background: hsla(var(--hue-danger), 85%, 55%, 0.15);
+        }
+
+        .item-marker.tone-in_review {
+          color: var(--color-warning);
+          background: hsla(var(--hue-warning), 85%, 55%, 0.15);
+        }
+
+        .item-marker.tone-neutral {
+          color: var(--text-muted);
+          background: rgba(255, 255, 255, 0.05);
         }
 
         .item-text p {
@@ -415,6 +553,7 @@ export default function Header({
         }
 
         .profile-avatar {
+          position: relative;
           width: 36px;
           height: 36px;
           border-radius: 50%;
@@ -425,6 +564,19 @@ export default function Header({
           font-weight: 700;
           color: white;
           font-size: 0.85rem;
+          box-shadow: var(--shadow-glow);
+        }
+
+        .profile-status-dot {
+          position: absolute;
+          bottom: -1px;
+          right: -1px;
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          background: var(--color-success);
+          border: 2px solid var(--bg-card);
+          box-shadow: 0 0 6px var(--color-success);
         }
 
         .profile-info {
