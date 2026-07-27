@@ -82,7 +82,7 @@ export default function Header({
   };
 
   return (
-    <header className="header-container glass">
+    <header className="header-container glass animate-fade-in">
       <div className="header-titles">
         <h1>{getTitle()}</h1>
         <p>{getSubtitle()}</p>
@@ -200,7 +200,9 @@ export default function Header({
         }
 
         .header-titles h1 {
-          font-size: 1.4rem;
+          font-family: var(--font-display);
+          font-size: 1.3rem;
+          letter-spacing: -0.01em;
           color: var(--text-primary);
           margin-bottom: 4px;
         }
@@ -268,6 +270,11 @@ export default function Header({
           color: var(--text-primary);
           background: rgba(255, 255, 255, 0.08);
           border-color: rgba(255, 255, 255, 0.2);
+          transform: translateY(-1px);
+        }
+
+        .icon-btn:active {
+          transform: translateY(0);
         }
 
         [data-theme="light"] .icon-btn:hover {
@@ -284,6 +291,19 @@ export default function Header({
           background-color: var(--color-danger);
           border-radius: 50%;
           border: 2px solid var(--bg-app);
+          box-shadow: 0 0 6px var(--color-danger);
+          animation: notifPulse 2s infinite alternate;
+        }
+
+        @keyframes notifPulse {
+          0% { transform: scale(0.9); opacity: 0.75; }
+          100% { transform: scale(1.25); opacity: 1; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .notification-badge {
+            animation: none !important;
+          }
         }
 
         .notification-wrapper {

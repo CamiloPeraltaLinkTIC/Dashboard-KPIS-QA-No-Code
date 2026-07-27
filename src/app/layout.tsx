@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import AuthProvider from "@/components/AuthProvider";
 
@@ -10,6 +10,15 @@ const geistSans = Geist({
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+// Fuente de "lectura técnica" para números clave y marca: refuerza la
+// identidad de herramienta de auditoría/medición (spec sheet), usada con
+// mesura solo en cifras destacadas y el wordmark, no en el cuerpo de texto.
+const displayMono = IBM_Plex_Mono({
+  variable: "--font-display-mono",
+  weight: ["600", "700"],
   subsets: ["latin"],
 });
 
@@ -24,7 +33,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} ${displayMono.variable}`}>
       <body>
         <AuthProvider>
           {children}

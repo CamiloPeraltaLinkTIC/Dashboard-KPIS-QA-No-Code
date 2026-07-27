@@ -37,7 +37,11 @@ export default function DeveloperLeaderboard({ developers }: DeveloperLeaderboar
             const ratingColor = getRatingColor(dev.complianceRate);
 
             return (
-              <div key={dev.name} className="dev-card glass glass-interactive">
+              <div
+                key={dev.name}
+                className="dev-card glass glass-interactive inspect-corners"
+                style={{ animationDelay: `${Math.min(index, 8) * 45}ms` }}
+              >
                 <div className="dev-rank">
                   <span>#{index + 1}</span>
                 </div>
@@ -141,11 +145,26 @@ export default function DeveloperLeaderboard({ developers }: DeveloperLeaderboar
           position: relative;
           gap: 24px;
           flex-wrap: wrap;
+          opacity: 0;
+          animation: rowIn 0.45s ease-out forwards;
+        }
+
+        @keyframes rowIn {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .dev-card {
+            animation: none !important;
+            opacity: 1 !important;
+          }
         }
 
         .dev-rank {
-          font-size: 1.2rem;
-          font-weight: 850;
+          font-family: var(--font-display);
+          font-size: 1.15rem;
+          font-weight: 700;
           color: var(--text-muted);
           min-width: 32px;
         }
@@ -214,8 +233,9 @@ export default function DeveloperLeaderboard({ developers }: DeveloperLeaderboar
         }
 
         .block-val {
-          font-size: 1.1rem;
-          font-weight: 750;
+          font-family: var(--font-display);
+          font-size: 1.05rem;
+          font-weight: 700;
           color: var(--text-primary);
         }
 

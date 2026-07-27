@@ -87,7 +87,20 @@ export default function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
   return (
     <aside className="sidebar-container glass">
       <div className="sidebar-logo">
-        <div className="logo-icon">NC</div>
+        <div className="logo-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path
+              className="logo-check-path"
+              d="M5 13l4 4L19 7"
+              stroke="white"
+              strokeWidth="3.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeDasharray="24"
+              strokeDashoffset="24"
+            />
+          </svg>
+        </div>
         <div className="logo-text">
           <h2>NoCode<span className="text-gradient">QA</span></h2>
           <p>Evaluación de Devs</p>
@@ -107,7 +120,7 @@ export default function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
                 {item.icon}
               </span>
               <span className="nav-label">{item.label}</span>
-              {isActive && <div className="active-indicator" />}
+              <div className={`active-indicator ${isActive ? 'is-active' : ''}`} />
             </button>
           );
         })}
@@ -157,12 +170,39 @@ export default function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
           color: white;
           font-size: 1.1rem;
           box-shadow: var(--shadow-glow);
+          flex-shrink: 0;
+          opacity: 0;
+          transform: scale(0.5) rotate(-12deg);
+          animation: logoBadgeIn 0.5s 0.1s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+
+        .logo-check-path {
+          animation: logoDrawCheck 0.5s 0.55s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+        }
+
+        @keyframes logoBadgeIn {
+          from { opacity: 0; transform: scale(0.5) rotate(-12deg); }
+          to { opacity: 1; transform: scale(1) rotate(0deg); }
+        }
+
+        @keyframes logoDrawCheck {
+          to { stroke-dashoffset: 0; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .logo-icon, .logo-check-path {
+            animation: none !important;
+            opacity: 1 !important;
+            transform: none !important;
+            stroke-dashoffset: 0 !important;
+          }
         }
 
         .logo-text h2 {
-          font-size: 1.15rem;
+          font-family: var(--font-display);
+          font-size: 1.1rem;
           margin-bottom: 2px;
-          letter-spacing: -0.02em;
+          letter-spacing: -0.01em;
         }
 
         .logo-text p {
@@ -233,6 +273,15 @@ export default function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
           background-color: var(--color-primary);
           border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
           box-shadow: var(--shadow-glow);
+          transform: scaleY(0);
+          transform-origin: center;
+          opacity: 0;
+          transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s ease;
+        }
+
+        .active-indicator.is-active {
+          transform: scaleY(1);
+          opacity: 1;
         }
 
         .sidebar-footer {

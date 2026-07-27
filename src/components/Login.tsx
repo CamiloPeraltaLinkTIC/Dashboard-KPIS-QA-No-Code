@@ -53,9 +53,10 @@ export default function Login() {
         <div className="aurora aurora-1" />
         <div className="aurora aurora-2" />
         <div className="pixel-grid" />
+        <div className="ambient-grain" />
 
         <div className="stat-chip chip-1">
-          <div className="chip-inner">
+          <div className="chip-inner inspect-corners">
             <span className="chip-icon">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
@@ -70,7 +71,7 @@ export default function Login() {
         </div>
 
         <div className="stat-chip chip-2">
-          <div className="chip-inner">
+          <div className="chip-inner inspect-corners">
             <span className="chip-icon">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="m9 11 3 3L22 4" />
@@ -85,7 +86,7 @@ export default function Login() {
         </div>
 
         <div className="stat-chip chip-3">
-          <div className="chip-inner">
+          <div className="chip-inner inspect-corners">
             <span className="chip-icon">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 3l2.09 6.26L20 9.27l-5 3.64L16.18 21 12 17.27 7.82 21 9 12.91l-5-3.64 5.91-.01z" />
@@ -379,8 +380,10 @@ export default function Login() {
 
         .login-header h2 {
           color: var(--text-primary);
+          font-family: var(--font-display);
           font-size: 1.7rem;
           font-weight: 700;
+          letter-spacing: -0.01em;
           margin-bottom: 8px;
         }
 

@@ -342,6 +342,14 @@ export default function DashboardHome() {
 
   return (
     <div className="dashboard-layout">
+      {/* Fondo ambiental compartido con el login */}
+      <div className="ambient-bg" aria-hidden="true">
+        <div className="ambient-aurora ambient-aurora-1" />
+        <div className="ambient-aurora ambient-aurora-2" />
+        <div className="ambient-grid" />
+        <div className="ambient-grain" />
+      </div>
+
       {/* Sidebar Navigation */}
       <Sidebar currentTab={currentTab} setCurrentTab={setCurrentTab} />
 
@@ -361,6 +369,7 @@ export default function DashboardHome() {
               {/* Developer Specific or Team KPIs */}
               <div className="kpi-cards-grid">
                 <MetricCard
+                  delayMs={0}
                   title="Pixel Perfect"
                   value={`${stats.kpisTotal.pixelPerfect}%`}
                   subtext="Fidelidad respecto al diseño"
@@ -377,6 +386,7 @@ export default function DashboardHome() {
                 />
 
                 <MetricCard
+                  delayMs={60}
                   title="Cumplimiento de DoD"
                   value={`${stats.kpisTotal.cumplimientoDod}%`}
                   subtext="Definition of Done"
@@ -393,6 +403,7 @@ export default function DashboardHome() {
                 />
 
                 <MetricCard
+                  delayMs={120}
                   title="Calidad Visual"
                   value={`${stats.kpisTotal.calidadVisual}%`}
                   subtext="Consistencia y acabado UI"
@@ -408,6 +419,7 @@ export default function DashboardHome() {
                 />
 
                 <MetricCard
+                  delayMs={180}
                   title="Errores Visuales y de Diseño"
                   value={stats.erroresVisuales}
                   subtext="Detectados por QA"
@@ -424,6 +436,7 @@ export default function DashboardHome() {
                 />
 
                 <MetricCard
+                  delayMs={240}
                   title="Retrabajo"
                   value={stats.retrabajo}
                   subtext="Incidencias devueltas"

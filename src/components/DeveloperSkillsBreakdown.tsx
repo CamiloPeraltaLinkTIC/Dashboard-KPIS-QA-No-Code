@@ -109,10 +109,10 @@ export default function DeveloperSkillsBreakdown({ developers, selectedDevId }: 
       </div>
 
       <div className="skills-list">
-        {skillItems.map((skill) => {
+        {skillItems.map((skill, index) => {
           const color = getBarColor(skill.score);
           return (
-            <div key={skill.key} className="skill-row">
+            <div key={skill.key} className="skill-row" style={{ animationDelay: `${index * 70}ms` }}>
               <div className="skill-meta-group">
                 <div className="skill-icon-box" style={{ color: color, background: `${color}15` }}>
                   {skill.icon}
@@ -170,6 +170,20 @@ export default function DeveloperSkillsBreakdown({ developers, selectedDevId }: 
           display: flex;
           flex-direction: column;
           gap: 8px;
+          opacity: 0;
+          animation: skillRowIn 0.45s ease-out forwards;
+        }
+
+        @keyframes skillRowIn {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .skill-row {
+            animation: none !important;
+            opacity: 1 !important;
+          }
         }
 
         .skill-meta-group {
@@ -207,8 +221,9 @@ export default function DeveloperSkillsBreakdown({ developers, selectedDevId }: 
         }
 
         .skill-score {
-          font-size: 0.95rem;
-          font-weight: 750;
+          font-family: var(--font-display);
+          font-size: 0.92rem;
+          font-weight: 700;
         }
 
         .skill-bar-track {

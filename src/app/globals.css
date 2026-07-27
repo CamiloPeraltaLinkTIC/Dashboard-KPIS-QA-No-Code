@@ -2,6 +2,7 @@
   /* Fonts */
   --font-sans: var(--font-geist-sans), system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
   --font-mono: var(--font-geist-mono), monospace;
+  --font-display: var(--font-display-mono), var(--font-mono);
 
   /* Color Palette - HSL based */
   --hue-primary: 263; /* Purple/Indigo */
@@ -220,4 +221,125 @@ h1, h2, h3, h4, h5, h6, p, span, label, td, th, a {
 
 .glow-pulse {
   animation: pulse-glow 3s infinite ease-in-out;
+}
+
+/* Ambient background (fondo decorativo del dashboard, mismo lenguaje del login) */
+.ambient-bg {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.ambient-aurora {
+  position: absolute;
+  width: 620px;
+  height: 620px;
+  border-radius: 50%;
+  filter: blur(110px);
+  opacity: 0.35;
+}
+
+.ambient-aurora-1 {
+  top: -14%;
+  left: -6%;
+  background: radial-gradient(circle, hsla(263, 85%, 64%, 0.5), transparent 70%);
+  animation: ambientDrift1 32s ease-in-out infinite;
+}
+
+.ambient-aurora-2 {
+  bottom: -18%;
+  right: -10%;
+  background: radial-gradient(circle, hsla(190, 90%, 50%, 0.45), transparent 70%);
+  animation: ambientDrift2 38s ease-in-out infinite;
+}
+
+.ambient-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--border-color) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border-color) 1px, transparent 1px);
+  background-size: 34px 34px;
+  mask-image: radial-gradient(circle at 15% 0%, black, transparent 65%);
+  -webkit-mask-image: radial-gradient(circle at 15% 0%, black, transparent 65%);
+  opacity: 0.5;
+}
+
+@keyframes ambientDrift1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(4%, 5%) scale(1.08); }
+}
+
+@keyframes ambientDrift2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-4%, -5%) scale(1.06); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient-aurora {
+    animation: none !important;
+  }
+}
+
+/* Grano sutil: rompe el degradado liso de las auroras para que no se vea "plano" */
+.ambient-grain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Marcas de esquina tipo visor/cropmark: motivo de "inspección" para tarjetas
+   con datos medidos (KPIs, ranking). Deliberadamente sutiles en reposo. */
+.inspect-corners {
+  position: relative;
+}
+
+.inspect-corners::before,
+.inspect-corners::after {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  opacity: 0.3;
+  pointer-events: none;
+  transition: opacity 0.25s ease, top 0.25s ease, left 0.25s ease, bottom 0.25s ease, right 0.25s ease;
+}
+
+.inspect-corners::before {
+  top: 8px;
+  left: 8px;
+  border-top: 2px solid var(--color-primary);
+  border-left: 2px solid var(--color-primary);
+  border-radius: 3px 0 0 0;
+}
+
+.inspect-corners::after {
+  bottom: 8px;
+  right: 8px;
+  border-bottom: 2px solid var(--color-secondary);
+  border-right: 2px solid var(--color-secondary);
+  border-radius: 0 0 3px 0;
+}
+
+.inspect-corners:hover::before {
+  top: 5px;
+  left: 5px;
+  opacity: 0.95;
+}
+
+.inspect-corners:hover::after {
+  bottom: 5px;
+  right: 5px;
+  opacity: 0.95;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inspect-corners::before,
+  .inspect-corners::after {
+    transition: opacity 0.25s ease;
+  }
 }

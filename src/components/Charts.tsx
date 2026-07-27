@@ -64,7 +64,7 @@ export function BugCategoriesDonut({ kpis }: DonutProps) {
                   strokeDashoffset={strokeOffset}
                   transform={`rotate(${rotation} ${center} ${center})`}
                   style={{
-                    transition: 'stroke-width 0.2s ease, stroke 0.2s ease',
+                    transition: 'stroke-width 0.2s ease, stroke 0.2s ease, stroke-dashoffset 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
                     cursor: 'pointer'
                   }}
                   onMouseEnter={() => setHoveredSlice(index)}
@@ -163,8 +163,9 @@ export function BugCategoriesDonut({ kpis }: DonutProps) {
         }
 
         .center-value {
-          font-size: 1.3rem;
-          font-weight: 800;
+          font-family: var(--font-display);
+          font-size: 1.25rem;
+          font-weight: 700;
           color: var(--text-primary);
           line-height: 1.05;
         }

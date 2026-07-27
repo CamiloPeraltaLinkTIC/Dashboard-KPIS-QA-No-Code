@@ -11,6 +11,7 @@ interface MetricCardProps {
   color: 'primary' | 'success' | 'warning' | 'danger';
   sparklineData: number[];
   icon: React.ReactNode;
+  delayMs?: number;
 }
 
 export default function MetricCard({
@@ -21,7 +22,8 @@ export default function MetricCard({
   trendType,
   color,
   sparklineData,
-  icon
+  icon,
+  delayMs = 0
 }: MetricCardProps) {
   // Generate sparkline path SVG
   const width = 100;
@@ -54,7 +56,7 @@ export default function MetricCard({
   };
 
   return (
-    <div className="metric-card glass glass-interactive">
+    <div className="metric-card glass glass-interactive inspect-corners" style={{ animationDelay: `${delayMs}ms` }}>
       <div className="card-top">
         <div className="card-info">
           <span className="card-title">{title}</span>
@@ -79,12 +81,15 @@ export default function MetricCard({
         <div className="sparkline-container" title="Tendencia últimas revisiones">
           <svg width={width} height={height}>
             <path
+              className="spark-path"
               d={`M ${points}`}
               fill="none"
               stroke={getThemeColor()}
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
+              pathLength={100}
+              style={{ animationDelay: `${delayMs + 350}ms` }}
             />
             {/* Soft gradient fill under sparkline */}
             <path
@@ -111,6 +116,34 @@ export default function MetricCard({
           gap: 16px;
           flex: 1;
           min-width: 220px;
+          opacity: 0;
+          animation: cardEnter 0.5s ease-out forwards;
+        }
+
+        @keyframes cardEnter {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        .spark-path {
+          stroke-dasharray: 100;
+          stroke-dashoffset: 100;
+          animation: sparkDraw 0.8s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+        }
+
+        @keyframes sparkDraw {
+          to { stroke-dashoffset: 0; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .metric-card {
+            animation: none !important;
+            opacity: 1 !important;
+          }
+          .spark-path {
+            animation: none !important;
+            stroke-dashoffset: 0 !important;
+          }
         }
 
         .card-top {
@@ -134,10 +167,11 @@ export default function MetricCard({
         }
 
         .card-value {
-          font-size: 1.8rem;
-          font-weight: 750;
+          font-family: var(--font-display);
+          font-size: 1.7rem;
+          font-weight: 700;
           color: var(--text-primary);
-          letter-spacing: -0.03em;
+          letter-spacing: -0.02em;
         }
 
         .card-icon-container {
