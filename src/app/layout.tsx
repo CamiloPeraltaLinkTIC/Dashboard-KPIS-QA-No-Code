@@ -33,7 +33,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} ${displayMono.variable}`}>
+    <html lang="es" className={`${geistSans.variable} ${geistMono.variable} ${displayMono.variable}`}>
       <body>
         <AuthProvider>
           {children}

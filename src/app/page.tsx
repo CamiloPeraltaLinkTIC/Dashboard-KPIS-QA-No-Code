@@ -124,8 +124,8 @@ export default function DashboardHome() {
 
           return {
             id: devRow.id,
-            name: devRow.full_name || devRow.username || 'Unknown',
-            role: 'No-Code Developer',
+            name: devRow.full_name || devRow.username || 'Desconocido',
+            role: 'Desarrollador No-Code',
             avatar: (devRow.username || 'D').substring(0, 2).toUpperCase(),
             approvedFirstTry,
             totalTasks,
@@ -416,7 +416,7 @@ export default function DashboardHome() {
               <div className="kpi-cards-grid">
                 <MetricCard
                   delayMs={150}
-                  title="Pixel Perfect"
+                  title="Píxel Perfecto"
                   value={`${stats.kpisTotal.pixelPerfect}%`}
                   subtext="Fidelidad respecto al diseño"
                   trend={selectedDeveloper === 'All' ? "Promedio equipo" : "Individual"}
@@ -435,7 +435,7 @@ export default function DashboardHome() {
                   delayMs={210}
                   title="Cumplimiento de DoD"
                   value={`${stats.kpisTotal.cumplimientoDod}%`}
-                  subtext="Definition of Done"
+                  subtext="Definición de Terminado"
                   trend={selectedDeveloper === 'All' ? "Promedio equipo" : "Individual"}
                   trendType="positive"
                   color="success"

@@ -61,8 +61,10 @@ export default function Header({
         return 'Calificar Desarrollador (Nueva Auditoría)';
       case 'developers':
         return 'Perfiles Técnicos Individuales';
+      case 'admin':
+        return 'Administración';
       default:
-        return 'NoCode QA Evaluation';
+        return 'Evaluación NoCodeQA';
     }
   };
 
@@ -76,6 +78,8 @@ export default function Header({
         return 'Evalúa los lineamientos técnicos de un entregable y calcula la calificación del desarrollador.';
       case 'developers':
         return 'Análisis detallado de aptitudes y evolución técnica por programador.';
+      case 'admin':
+        return 'Configura usuarios, proyectos y asignaciones de equipo.';
       default:
         return 'Métricas de calidad y desempeño.';
     }

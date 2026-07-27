@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
+import { translateAuthError } from '@/lib/authErrors';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -40,7 +41,7 @@ export default function Login() {
         throw authError;
       }
     } catch (err: any) {
-      setError(err.message || 'Error al iniciar sesión');
+      setError(translateAuthError(err?.message));
     } finally {
       setLoading(false);
     }
@@ -64,7 +65,7 @@ export default function Login() {
               </svg>
             </span>
             <div className="chip-text">
-              <span className="chip-label">Pixel Perfect</span>
+              <span className="chip-label">Píxel Perfecto</span>
               <span className="chip-value">99%</span>
             </div>
           </div>

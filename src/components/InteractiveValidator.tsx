@@ -234,7 +234,7 @@ export default function InteractiveValidator({ onAddReview, developers, projects
           </div>
 
           <div className="form-group">
-            <label htmlFor="task-name">Tarea / Feature Evaluada</label>
+            <label htmlFor="task-name">Tarea / Funcionalidad Evaluada</label>
             <div className="input-icon-wrap">
               <svg className="field-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect width="8" height="4" x="8" y="2" rx="1" ry="1" />
@@ -256,7 +256,7 @@ export default function InteractiveValidator({ onAddReview, developers, projects
             <span className="qa-auditor-avatar">{(profile?.username || 'QA').substring(0, 2).toUpperCase()}</span>
             <div className="qa-auditor-text">
               <span className="qa-auditor-label">Auditor QA Evaluador</span>
-              <strong className="qa-auditor-name">{profile?.username || 'QA Analyst'}</strong>
+              <strong className="qa-auditor-name">{profile?.username || 'Analista QA'}</strong>
             </div>
           </div>
 

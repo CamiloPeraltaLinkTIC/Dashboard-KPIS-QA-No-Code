@@ -117,9 +117,9 @@ export default function AdminPanel() {
         developer_id: item.developer_id,
         qa_id: item.qa_id,
         project_id: item.project_id,
-        dev_username: item.developer?.username || 'Unknown',
-        qa_username: item.qa?.username || 'Unknown',
-        project_name: item.project?.name || 'Unknown'
+        dev_username: item.developer?.username || 'Desconocido',
+        qa_username: item.qa?.username || 'Desconocido',
+        project_name: item.project?.name || 'Desconocido'
       }));
       setAssignments(formatted);
     }

@@ -69,7 +69,7 @@ export default function RecentLogs({ logs, onDeleteReview }: RecentLogsProps) {
   const kpiChips = (log: DeveloperReview) => [
     {
       key: 'pixelPerfect',
-      label: 'Pixel Perfect',
+      label: 'Píxel Perfecto',
       value: `${log.kpis?.pixelPerfect ?? 0}%`,
       tone: 'primary',
       icon: (
@@ -133,7 +133,7 @@ export default function RecentLogs({ logs, onDeleteReview }: RecentLogsProps) {
     <div className="logs-card glass">
       <div className="logs-header">
         <div className="title-group">
-          <h3>Historial de Calificaciones (QA Reviews)</h3>
+          <h3>Historial de Calificaciones (Revisiones QA)</h3>
           <p>Registro ordenado de revisiones individuales por tarea de desarrollo</p>
         </div>
 

@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from '@supabase/supabase-js';
+import { translateAuthError } from '@/lib/authErrors';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -15,7 +16,7 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
 
 export async function createNewUser(formData: FormData) {
   if (!supabaseServiceKey) {
-    return { success: false, error: 'SUPABASE_SERVICE_ROLE_KEY is not configured in the server environment.' };
+    return { success: false, error: 'SUPABASE_SERVICE_ROLE_KEY no está configurada en el entorno del servidor.' };
   }
 
   const username = formData.get('username') as string;
@@ -39,7 +40,7 @@ export async function createNewUser(formData: FormData) {
     });
 
     if (authError) {
-      return { success: false, error: authError.message };
+      return { success: false, error: translateAuthError(authError.message) };
     }
 
     if (!authData.user) {
@@ -75,7 +76,7 @@ export async function createNewUser(formData: FormData) {
 
 export async function updateUser(formData: FormData) {
   if (!supabaseServiceKey) {
-    return { success: false, error: 'SUPABASE_SERVICE_ROLE_KEY is not configured in the server environment.' };
+    return { success: false, error: 'SUPABASE_SERVICE_ROLE_KEY no está configurada en el entorno del servidor.' };
   }
 
   const userId = formData.get('userId') as string;
@@ -95,7 +96,7 @@ export async function updateUser(formData: FormData) {
         password: password.trim()
       });
       if (authError) {
-        return { success: false, error: `Error actualizando contraseña: ${authError.message}` };
+        return { success: false, error: `Error actualizando contraseña: ${translateAuthError(authError.message)}` };
       }
     }
 
@@ -128,7 +129,7 @@ export async function updateUser(formData: FormData) {
 
 export async function createProject(formData: FormData) {
   if (!supabaseServiceKey) {
-    return { success: false, error: 'SUPABASE_SERVICE_ROLE_KEY is not configured in the server environment.' };
+    return { success: false, error: 'SUPABASE_SERVICE_ROLE_KEY no está configurada en el entorno del servidor.' };
   }
 
   const name = formData.get('name') as string;
@@ -157,7 +158,7 @@ export async function createProject(formData: FormData) {
 
 export async function deleteProject(projectId: string) {
   if (!supabaseServiceKey) {
-    return { success: false, error: 'SUPABASE_SERVICE_ROLE_KEY is not configured.' };
+    return { success: false, error: 'SUPABASE_SERVICE_ROLE_KEY no está configurada.' };
   }
 
   try {
@@ -178,7 +179,7 @@ export async function deleteProject(projectId: string) {
 
 export async function createAssignment(formData: FormData) {
   if (!supabaseServiceKey) {
-    return { success: false, error: 'SUPABASE_SERVICE_ROLE_KEY is not configured.' };
+    return { success: false, error: 'SUPABASE_SERVICE_ROLE_KEY no está configurada.' };
   }
 
   const developerId = formData.get('developerId') as string;
@@ -216,7 +217,7 @@ export async function createAssignment(formData: FormData) {
 
 export async function deleteKpiReview(reviewId: string, requestedByUserId: string) {
   if (!supabaseServiceKey) {
-    return { success: false, error: 'SUPABASE_SERVICE_ROLE_KEY is not configured.' };
+    return { success: false, error: 'SUPABASE_SERVICE_ROLE_KEY no está configurada.' };
   }
 
   if (!reviewId || !requestedByUserId) {
@@ -254,7 +255,7 @@ export async function deleteKpiReview(reviewId: string, requestedByUserId: strin
 
 export async function deleteAssignment(assignmentId: string) {
   if (!supabaseServiceKey) {
-    return { success: false, error: 'SUPABASE_SERVICE_ROLE_KEY is not configured.' };
+    return { success: false, error: 'SUPABASE_SERVICE_ROLE_KEY no está configurada.' };
   }
 
   try {
