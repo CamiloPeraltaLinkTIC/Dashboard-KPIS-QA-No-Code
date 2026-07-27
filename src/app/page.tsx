@@ -240,7 +240,8 @@ export default function DashboardHome() {
   const handleDeleteReview = async (reviewId: string, developerId: string) => {
     if (!profile?.id) return;
 
-    const result = await deleteKpiReview(reviewId, profile.id);
+    const { data: { session } } = await supabase.auth.getSession();
+    const result = await deleteKpiReview(reviewId, session?.access_token || '');
     if (!result.success) {
       alert('Error al eliminar: ' + result.error);
       return;

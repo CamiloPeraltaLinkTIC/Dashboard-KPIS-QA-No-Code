@@ -65,6 +65,35 @@ create policy "Admins can insert and update any profile."
   on public.nocode_profiles for all
   using ( public.get_auth_user_role() in ('admin', 'Administrator') );
 
+-- La política "Users can update their own nocode profile." solo restringe QUÉ FILA
+-- se puede tocar (auth.uid() = id), no QUÉ COLUMNAS. Sin este trigger, cualquier
+-- usuario autenticado podría auto-ascenderse llamando directamente:
+--   supabase.from('nocode_profiles').update({ role: 'admin' }).eq('id', suPropioId)
+-- desde el cliente, con la anon key pública. Este trigger bloquea ese cambio salvo
+-- que quien lo haga ya sea admin, o que la operación venga de la service role key
+-- (Server Actions en admin.ts, que ya verifican el rol admin en el servidor).
+create or replace function public.prevent_self_role_escalation()
+returns trigger as $$
+begin
+  if auth.role() = 'service_role' then
+    return new;
+  end if;
+
+  if (new.role is distinct from old.role or new.assigned_qa_id is distinct from old.assigned_qa_id)
+     and coalesce(public.get_auth_user_role(), '') not in ('admin', 'Administrator') then
+    raise exception 'No tienes permisos para modificar el rol o la asignación de QA.';
+  end if;
+
+  return new;
+end;
+$$ language plpgsql security definer;
+
+drop trigger if exists prevent_self_role_escalation_trigger on public.nocode_profiles;
+
+create trigger prevent_self_role_escalation_trigger
+  before update on public.nocode_profiles
+  for each row execute procedure public.prevent_self_role_escalation();
+
 
 -- Create a table for KPIs (Idempotent)
 create table if not exists public.nocode_kpis (

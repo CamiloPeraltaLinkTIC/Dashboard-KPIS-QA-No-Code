@@ -276,10 +276,10 @@ export default function InteractiveValidator({ onAddReview, developers, projects
                     <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
                     <circle cx="12" cy="12" r="3" />
                   </svg>
-                  Pixel Perfect (%)
+                  Píxel Perfecto (%)
                 </span>
                 <div className="counter-actions">
-                  <button type="button" onClick={() => setPixelPerfect(Math.max(0, pixelPerfect - 5))} aria-label="Disminuir Pixel Perfect">-</button>
+                  <button type="button" onClick={() => setPixelPerfect(Math.max(0, pixelPerfect - 5))} aria-label="Disminuir Píxel Perfecto">-</button>
                   <input
                     type="number"
                     className="counter-value"
@@ -288,9 +288,9 @@ export default function InteractiveValidator({ onAddReview, developers, projects
                     max={100}
                     onChange={(e) => handleCounterInput(e.target.value, setPixelPerfect, 100)}
                     onFocus={(e) => e.target.select()}
-                    aria-label="Pixel Perfect"
+                    aria-label="Píxel Perfecto"
                   />
-                  <button type="button" onClick={() => setPixelPerfect(Math.min(100, pixelPerfect + 5))} aria-label="Aumentar Pixel Perfect">+</button>
+                  <button type="button" onClick={() => setPixelPerfect(Math.min(100, pixelPerfect + 5))} aria-label="Aumentar Píxel Perfecto">+</button>
                 </div>
               </div>
 

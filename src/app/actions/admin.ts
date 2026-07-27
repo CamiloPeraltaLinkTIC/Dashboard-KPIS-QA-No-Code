@@ -14,10 +14,39 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
   }
 });
 
+// Verifica en el servidor (nunca confiando en datos del cliente) que quien invoca
+// esta acción tiene una sesión válida y rol admin. El accessToken se valida
+// criptográficamente contra Supabase Auth; no puede ser falsificado por el cliente.
+async function requireAdmin(accessToken: string | null | undefined): Promise<{ error: string } | { userId: string }> {
+  if (!accessToken) {
+    return { error: 'No autenticado.' };
+  }
+
+  const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(accessToken);
+  if (authError || !user) {
+    return { error: 'Sesión inválida o expirada.' };
+  }
+
+  const { data: callerProfile, error: profileError } = await supabaseAdmin
+    .from('nocode_profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  if (profileError || !callerProfile || !['admin', 'Administrator'].includes(callerProfile.role)) {
+    return { error: 'No tienes permisos de administrador para realizar esta acción.' };
+  }
+
+  return { userId: user.id };
+}
+
 export async function createNewUser(formData: FormData) {
   if (!supabaseServiceKey) {
     return { success: false, error: 'SUPABASE_SERVICE_ROLE_KEY no está configurada en el entorno del servidor.' };
   }
+
+  const auth = await requireAdmin(formData.get('accessToken') as string);
+  if ('error' in auth) return { success: false, error: auth.error };
 
   const username = formData.get('username') as string;
   const password = formData.get('password') as string;
@@ -79,6 +108,9 @@ export async function updateUser(formData: FormData) {
     return { success: false, error: 'SUPABASE_SERVICE_ROLE_KEY no está configurada en el entorno del servidor.' };
   }
 
+  const auth = await requireAdmin(formData.get('accessToken') as string);
+  if ('error' in auth) return { success: false, error: auth.error };
+
   const userId = formData.get('userId') as string;
   const fullName = formData.get('fullName') as string;
   const role = formData.get('role') as string;
@@ -132,6 +164,9 @@ export async function createProject(formData: FormData) {
     return { success: false, error: 'SUPABASE_SERVICE_ROLE_KEY no está configurada en el entorno del servidor.' };
   }
 
+  const auth = await requireAdmin(formData.get('accessToken') as string);
+  if ('error' in auth) return { success: false, error: auth.error };
+
   const name = formData.get('name') as string;
   const description = formData.get('description') as string;
 
@@ -156,10 +191,13 @@ export async function createProject(formData: FormData) {
   }
 }
 
-export async function deleteProject(projectId: string) {
+export async function deleteProject(projectId: string, accessToken: string) {
   if (!supabaseServiceKey) {
     return { success: false, error: 'SUPABASE_SERVICE_ROLE_KEY no está configurada.' };
   }
+
+  const auth = await requireAdmin(accessToken);
+  if ('error' in auth) return { success: false, error: auth.error };
 
   try {
     const { error } = await supabaseAdmin
@@ -181,6 +219,9 @@ export async function createAssignment(formData: FormData) {
   if (!supabaseServiceKey) {
     return { success: false, error: 'SUPABASE_SERVICE_ROLE_KEY no está configurada.' };
   }
+
+  const auth = await requireAdmin(formData.get('accessToken') as string);
+  if ('error' in auth) return { success: false, error: auth.error };
 
   const developerId = formData.get('developerId') as string;
   const qaId = formData.get('qaId') as string;
@@ -215,28 +256,21 @@ export async function createAssignment(formData: FormData) {
   }
 }
 
-export async function deleteKpiReview(reviewId: string, requestedByUserId: string) {
+export async function deleteKpiReview(reviewId: string, accessToken: string) {
   if (!supabaseServiceKey) {
     return { success: false, error: 'SUPABASE_SERVICE_ROLE_KEY no está configurada.' };
   }
 
-  if (!reviewId || !requestedByUserId) {
+  if (!reviewId || !accessToken) {
     return { success: false, error: 'Faltan datos para eliminar la calificación.' };
   }
 
   try {
     // El historial de auditorías es información sensible: se verifica en el
-    // servidor que quien pide el borrado sea realmente admin, no solo que la
-    // pestaña esté oculta para otros roles en el cliente.
-    const { data: requester, error: requesterError } = await supabaseAdmin
-      .from('nocode_profiles')
-      .select('role')
-      .eq('id', requestedByUserId)
-      .single();
-
-    if (requesterError || !requester || !['admin', 'Administrator'].includes(requester.role)) {
-      return { success: false, error: 'No tienes permisos para eliminar registros de auditoría.' };
-    }
+    // servidor (a partir de una sesión validada criptográficamente, no de un
+    // id que mande el cliente) que quien pide el borrado sea realmente admin.
+    const auth = await requireAdmin(accessToken);
+    if ('error' in auth) return { success: false, error: auth.error };
 
     const { error } = await supabaseAdmin
       .from('nocode_kpis')
@@ -253,10 +287,13 @@ export async function deleteKpiReview(reviewId: string, requestedByUserId: strin
   }
 }
 
-export async function deleteAssignment(assignmentId: string) {
+export async function deleteAssignment(assignmentId: string, accessToken: string) {
   if (!supabaseServiceKey) {
     return { success: false, error: 'SUPABASE_SERVICE_ROLE_KEY no está configurada.' };
   }
+
+  const auth = await requireAdmin(accessToken);
+  if ('error' in auth) return { success: false, error: auth.error };
 
   try {
     const { error } = await supabaseAdmin

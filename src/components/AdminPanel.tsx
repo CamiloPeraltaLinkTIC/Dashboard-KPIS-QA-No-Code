@@ -171,7 +171,9 @@ export default function AdminPanel() {
     setMessage(null);
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const form = new FormData();
+      form.append('accessToken', session?.access_token || '');
       form.append('username', userFormData.username);
       form.append('fullName', userFormData.fullName);
       form.append('password', userFormData.password);
@@ -215,7 +217,9 @@ export default function AdminPanel() {
     setMessage(null);
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const form = new FormData();
+      form.append('accessToken', session?.access_token || '');
       form.append('name', projectFormData.name);
       form.append('description', projectFormData.description);
 
@@ -240,7 +244,9 @@ export default function AdminPanel() {
     setMessage(null);
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const form = new FormData();
+      form.append('accessToken', session?.access_token || '');
       form.append('developerId', assignmentFormData.developerId);
       form.append('qaId', assignmentFormData.qaId);
       form.append('projectId', assignmentFormData.projectId);
@@ -263,7 +269,8 @@ export default function AdminPanel() {
   const handleDeleteProj = async (id: string) => {
     if (!confirm('¿Estás seguro de eliminar este proyecto? Se perderán las asignaciones relacionadas.')) return;
     setLoading(true);
-    const result = await deleteProject(id);
+    const { data: { session } } = await supabase.auth.getSession();
+    const result = await deleteProject(id, session?.access_token || '');
     if (result.success) {
       setMessage({ type: 'success', text: result.message! });
       await fetchData();
@@ -276,7 +283,8 @@ export default function AdminPanel() {
   const handleDeleteAssign = async (id: string) => {
     if (!confirm('¿Estás seguro de eliminar esta asignación?')) return;
     setLoading(true);
-    const result = await deleteAssignment(id);
+    const { data: { session } } = await supabase.auth.getSession();
+    const result = await deleteAssignment(id, session?.access_token || '');
     if (result.success) {
       setMessage({ type: 'success', text: result.message! });
       await fetchData();
