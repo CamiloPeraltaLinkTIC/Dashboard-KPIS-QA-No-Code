@@ -730,7 +730,9 @@ export default function AdminPanel() {
         }
 
         .panel-header h2 {
-          font-size: 1.8rem;
+          font-family: var(--font-display);
+          font-size: 1.7rem;
+          letter-spacing: -0.01em;
           color: var(--text-primary);
           margin-bottom: 8px;
         }
@@ -756,17 +758,24 @@ export default function AdminPanel() {
           font-weight: 600;
           font-size: 0.95rem;
           cursor: pointer;
-          transition: all 0.2s;
+          transition: color 0.2s ease, border-color 0.2s ease;
           border-bottom: 2px solid transparent;
+          border-radius: var(--radius-xs) var(--radius-xs) 0 0;
         }
 
         .subtab-btn:hover {
           color: var(--text-primary);
+          background: rgba(255, 255, 255, 0.03);
+        }
+
+        [data-theme="light"] .subtab-btn:hover {
+          background: rgba(0, 0, 0, 0.02);
         }
 
         .subtab-btn.active {
           color: var(--color-primary);
-          border-bottom-color: var(--color-primary);
+          border-bottom: 2px solid transparent;
+          border-image: linear-gradient(90deg, var(--color-primary), var(--color-secondary)) 1;
         }
 
         .admin-content {
@@ -776,7 +785,9 @@ export default function AdminPanel() {
         }
 
         .form-card, .list-card {
-          background: rgba(255, 255, 255, 0.02);
+          background:
+            linear-gradient(135deg, hsla(263, 85%, 64%, 0.05), hsla(190, 90%, 50%, 0.03)),
+            rgba(255, 255, 255, 0.02);
           border: 1px solid var(--border-color);
           border-radius: var(--radius-md);
           padding: 24px;
@@ -928,14 +939,14 @@ export default function AdminPanel() {
           flex: 1;
           padding: 14px;
           border-radius: var(--radius-sm);
-          background: var(--color-primary);
+          background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
           color: white;
           font-weight: 600;
           font-size: 1rem;
           border: none;
           cursor: pointer;
           transition: all 0.2s;
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+          box-shadow: 0 4px 12px hsla(263, 85%, 64%, 0.25);
         }
 
         .btn-primary:hover:not(:disabled) {

@@ -71,6 +71,39 @@ export default function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
     }
   ];
 
+  const getRoleIcon = () => {
+    if (role === 'dev' || role === 'Developer') {
+      return (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="16 18 22 12 16 6" />
+          <polyline points="8 6 2 12 8 18" />
+        </svg>
+      );
+    }
+    if (role === 'admin' || role === 'Administrator') {
+      return (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+          <circle cx="12" cy="12" r="3" />
+        </svg>
+      );
+    }
+    if (role === 'leader') {
+      return (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
+          <polyline points="16 7 22 7 22 13" />
+        </svg>
+      );
+    }
+    return (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="m9 12 2 2 4-4" />
+        <path d="M5 7a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z" />
+      </svg>
+    );
+  };
+
   const menuItems = allMenuItems.filter(item => {
     const isDev = role === 'dev' || role === 'Developer';
     const isAdmin = role === 'admin' || role === 'Administrator';
@@ -116,7 +149,7 @@ export default function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
               onClick={() => setCurrentTab(item.id)}
               className={`nav-item ${isActive ? 'active' : ''}`}
             >
-              <span className={`nav-icon ${isActive ? 'active-icon' : ''}`}>
+              <span className={`nav-icon-box ${isActive ? 'active-icon' : ''}`}>
                 {item.icon}
               </span>
               <span className="nav-label">{item.label}</span>
@@ -128,11 +161,14 @@ export default function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
 
       <div className="sidebar-footer">
         <div className="footer-card">
-          <div className="footer-card-header">
+          <div className="footer-icon-box">
+            {getRoleIcon()}
             <span className="pulse-indicator"></span>
-            <h4>{role === 'dev' ? 'Dev Portal Active' : (role === 'admin' || role === 'Administrator' ? 'Admin Portal' : role === 'leader' ? 'Leader View Active' : 'QA Auditor Active')}</h4>
           </div>
-          <p>{role === 'dev' ? 'Métricas de desarrollo' : (role === 'admin' || role === 'Administrator' ? 'Administración' : role === 'leader' ? 'Métricas de equipo' : 'Módulo de Calificaciones')}</p>
+          <div className="footer-card-text">
+            <h4>{role === 'dev' ? 'Dev Portal Active' : (role === 'admin' || role === 'Administrator' ? 'Admin Portal' : role === 'leader' ? 'Leader View Active' : 'QA Auditor Active')}</h4>
+            <p>{role === 'dev' ? 'Métricas de desarrollo' : (role === 'admin' || role === 'Administrator' ? 'Administración' : role === 'leader' ? 'Métricas de equipo' : 'Módulo de Calificaciones')}</p>
+          </div>
         </div>
       </div>
 
@@ -225,7 +261,7 @@ export default function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
           display: flex;
           align-items: center;
           gap: 12px;
-          padding: 12px 14px;
+          padding: 8px 14px 8px 8px;
           border: none;
           background: transparent;
           color: var(--text-secondary);
@@ -235,7 +271,7 @@ export default function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
           text-align: left;
           cursor: pointer;
           position: relative;
-          transition: all 0.2s ease;
+          transition: background-color 0.2s ease, color 0.2s ease;
         }
 
         .nav-item:hover {
@@ -248,19 +284,42 @@ export default function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
         }
 
         .nav-item.active {
-          color: var(--color-primary);
+          color: var(--text-primary);
           background: var(--color-primary-glow);
           font-weight: 600;
         }
 
-        .nav-icon {
+        .nav-icon-box {
           display: flex;
           align-items: center;
           justify-content: center;
-          transition: transform 0.2s ease;
+          width: 34px;
+          height: 34px;
+          border-radius: var(--radius-sm);
+          flex-shrink: 0;
+          background: transparent;
+          border: 1px solid transparent;
+          transition: background 0.25s ease, border-color 0.25s ease, transform 0.2s ease, box-shadow 0.25s ease;
         }
 
-        .nav-item:hover .nav-icon {
+        .nav-item:hover .nav-icon-box {
+          background: rgba(255, 255, 255, 0.05);
+          border-color: var(--border-color);
+          transform: scale(1.05);
+        }
+
+        [data-theme="light"] .nav-item:hover .nav-icon-box {
+          background: rgba(0, 0, 0, 0.03);
+        }
+
+        .nav-icon-box.active-icon {
+          background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+          border-color: transparent;
+          color: white;
+          box-shadow: var(--shadow-glow);
+        }
+
+        .nav-item.active:hover .nav-icon-box {
           transform: scale(1.05);
         }
 
@@ -269,8 +328,8 @@ export default function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
           left: 0;
           top: 25%;
           height: 50%;
-          width: 4px;
-          background-color: var(--color-primary);
+          width: 3px;
+          background: linear-gradient(180deg, var(--color-primary), var(--color-secondary));
           border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
           box-shadow: var(--shadow-glow);
           transform: scaleY(0);
@@ -290,29 +349,52 @@ export default function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
         }
 
         .footer-card {
-          background: rgba(255, 255, 255, 0.02);
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          background:
+            linear-gradient(135deg, hsla(263, 85%, 64%, 0.06), hsla(190, 90%, 50%, 0.04)),
+            rgba(255, 255, 255, 0.02);
           border: 1px solid var(--border-color);
+          border-left: 2px solid var(--color-primary);
           border-radius: var(--radius-sm);
           padding: 12px;
         }
 
         [data-theme="light"] .footer-card {
-          background: rgba(0, 0, 0, 0.02);
+          background:
+            linear-gradient(135deg, hsla(263, 85%, 64%, 0.05), hsla(190, 90%, 50%, 0.03)),
+            rgba(0, 0, 0, 0.02);
         }
 
-        .footer-card-header {
+        .footer-icon-box {
+          position: relative;
+          width: 32px;
+          height: 32px;
+          border-radius: var(--radius-sm);
+          background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+          color: white;
           display: flex;
           align-items: center;
-          gap: 8px;
-          margin-bottom: 4px;
+          justify-content: center;
+          flex-shrink: 0;
+          box-shadow: var(--shadow-glow);
+        }
+
+        .footer-card-text {
+          min-width: 0;
         }
 
         .pulse-indicator {
-          width: 8px;
-          height: 8px;
+          position: absolute;
+          bottom: -2px;
+          right: -2px;
+          width: 9px;
+          height: 9px;
           border-radius: 50%;
           background-color: var(--color-success);
           display: inline-block;
+          border: 2px solid var(--bg-card);
           box-shadow: 0 0 8px var(--color-success);
           animation: pulse 2s infinite alternate;
         }
@@ -330,6 +412,12 @@ export default function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
         .footer-card p {
           font-size: 0.72rem;
           color: var(--text-muted);
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .pulse-indicator {
+            animation: none !important;
+          }
         }
       `}</style>
     </aside>

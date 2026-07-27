@@ -8,6 +8,7 @@ import { BugCategoriesDonut } from '@/components/Charts';
 import DeveloperSkillsBreakdown from '@/components/DeveloperSkillsBreakdown';
 import RecentLogs from '@/components/RecentLogs';
 import InteractiveValidator from '@/components/InteractiveValidator';
+import ScoreHero from '@/components/ScoreHero';
 import DeveloperLeaderboard from '@/components/DeveloperLeaderboard';
 import AdminPanel from '@/components/AdminPanel';
 import { useAuth } from '@/components/AuthProvider';
@@ -318,6 +319,23 @@ export default function DashboardHome() {
     };
   }, [developers, allReviews, selectedDeveloper, selectedDeveloperData]);
 
+  // Score general para el hero del Panel General: score del dev seleccionado,
+  // o promedio del equipo cuando el filtro está en "Todos".
+  const heroScore = useMemo(() => {
+    if (selectedDeveloper !== 'All' && selectedDeveloperData) {
+      return selectedDeveloperData.complianceRate;
+    }
+    if (developers.length === 0) return 100;
+    return Math.round(developers.reduce((sum, d) => sum + d.complianceRate, 0) / developers.length);
+  }, [developers, selectedDeveloper, selectedDeveloperData]);
+
+  const heroBreakdown = useMemo(() => {
+    const approved = filteredReviews.filter((r) => r.status === 'approved').length;
+    const inReview = filteredReviews.filter((r) => r.status === 'in_review').length;
+    const rejected = filteredReviews.filter((r) => r.status === 'rejected').length;
+    return { approved, inReview, rejected, total: filteredReviews.length };
+  }, [filteredReviews]);
+
   // Dropdown list
   const developersDropdown = useMemo(() => {
     return developers.map((d) => ({ id: d.id, name: d.name }));
@@ -366,10 +384,16 @@ export default function DashboardHome() {
         <div className="tab-viewport">
           {currentTab === 'overview' && (
             <div className="view-pane animate-fade-in">
+              <ScoreHero
+                score={heroScore}
+                scopeLabel={selectedDeveloper === 'All' ? 'Todo el equipo' : selectedDeveloper}
+                breakdown={heroBreakdown}
+              />
+
               {/* Developer Specific or Team KPIs */}
               <div className="kpi-cards-grid">
                 <MetricCard
-                  delayMs={0}
+                  delayMs={150}
                   title="Pixel Perfect"
                   value={`${stats.kpisTotal.pixelPerfect}%`}
                   subtext="Fidelidad respecto al diseño"
@@ -386,7 +410,7 @@ export default function DashboardHome() {
                 />
 
                 <MetricCard
-                  delayMs={60}
+                  delayMs={210}
                   title="Cumplimiento de DoD"
                   value={`${stats.kpisTotal.cumplimientoDod}%`}
                   subtext="Definition of Done"
@@ -403,7 +427,7 @@ export default function DashboardHome() {
                 />
 
                 <MetricCard
-                  delayMs={120}
+                  delayMs={270}
                   title="Calidad Visual"
                   value={`${stats.kpisTotal.calidadVisual}%`}
                   subtext="Consistencia y acabado UI"
@@ -419,7 +443,7 @@ export default function DashboardHome() {
                 />
 
                 <MetricCard
-                  delayMs={180}
+                  delayMs={330}
                   title="Errores Visuales y de Diseño"
                   value={stats.erroresVisuales}
                   subtext="Detectados por QA"
@@ -436,7 +460,7 @@ export default function DashboardHome() {
                 />
 
                 <MetricCard
-                  delayMs={240}
+                  delayMs={390}
                   title="Retrabajo"
                   value={stats.retrabajo}
                   subtext="Incidencias devueltas"
@@ -692,15 +716,17 @@ export default function DashboardHome() {
           border-radius: var(--radius-sm);
           background: transparent;
           border: 1px solid transparent;
+          border-left: 2px solid transparent;
           color: var(--text-secondary);
           cursor: pointer;
           text-align: left;
-          transition: all 0.25s ease;
+          transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
         }
 
         .dev-profile-tab:hover {
           background: rgba(255, 255, 255, 0.03);
           color: var(--text-primary);
+          transform: translateX(2px);
         }
 
         [data-theme="light"] .dev-profile-tab:hover {
@@ -708,8 +734,11 @@ export default function DashboardHome() {
         }
 
         .dev-profile-tab.active {
-          background: var(--color-primary-glow);
-          border-color: var(--color-primary);
+          background:
+            linear-gradient(135deg, hsla(263, 85%, 64%, 0.08), hsla(190, 90%, 50%, 0.04)),
+            var(--color-primary-glow);
+          border-color: var(--border-color);
+          border-left-color: var(--color-primary);
           color: var(--color-primary);
         }
 
@@ -724,11 +753,14 @@ export default function DashboardHome() {
           justify-content: center;
           font-weight: 700;
           font-size: 0.8rem;
+          flex-shrink: 0;
+          transition: background 0.25s ease, box-shadow 0.25s ease;
         }
 
         .dev-profile-tab.active .tab-avatar {
-          background: var(--color-primary);
+          background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
           color: white;
+          box-shadow: var(--shadow-glow);
         }
 
         .tab-meta {

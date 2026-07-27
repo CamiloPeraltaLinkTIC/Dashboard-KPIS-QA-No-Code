@@ -48,7 +48,7 @@ export function BugCategoriesDonut({ kpis }: DonutProps) {
               const dashArray = circumference;
               const strokeOffset = circumference - (cat.percentage / 100) * circumference;
               const rotation = (currentDashOffset / circumference) * 360 - 90;
-              
+
               currentDashOffset += (cat.percentage / 100) * circumference;
 
               return (

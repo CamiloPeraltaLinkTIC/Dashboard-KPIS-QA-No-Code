@@ -227,7 +227,7 @@ export default function InteractiveValidator({ onAddReview, developers, projects
           <div className="bug-counter-section">
             <h4>Métricas de Calidad</h4>
             <div className="counters-row">
-              <div className="counter-box">
+              <div className="counter-box counter-positive">
                 <span className="counter-label text-gradient">Pixel Perfect (%)</span>
                 <div className="counter-actions">
                   <button type="button" onClick={() => setPixelPerfect(Math.max(0, pixelPerfect - 5))}>-</button>
@@ -236,7 +236,7 @@ export default function InteractiveValidator({ onAddReview, developers, projects
                 </div>
               </div>
 
-              <div className="counter-box">
+              <div className="counter-box counter-positive">
                 <span className="counter-label text-gradient">Cumplimiento DoD (%)</span>
                 <div className="counter-actions">
                   <button type="button" onClick={() => setCumplimientoDod(Math.max(0, cumplimientoDod - 5))}>-</button>
@@ -245,7 +245,7 @@ export default function InteractiveValidator({ onAddReview, developers, projects
                 </div>
               </div>
 
-              <div className="counter-box">
+              <div className="counter-box counter-positive">
                 <span className="counter-label text-gradient">Calidad Visual (%)</span>
                 <div className="counter-actions">
                   <button type="button" onClick={() => setCalidadVisual(Math.max(0, calidadVisual - 5))}>-</button>
@@ -254,7 +254,7 @@ export default function InteractiveValidator({ onAddReview, developers, projects
                 </div>
               </div>
 
-              <div className="counter-box">
+              <div className="counter-box counter-danger">
                 <span className="counter-label text-gradient" style={{color: 'var(--color-danger)'}}>Errores Visuales y de Diseño</span>
                 <div className="counter-actions">
                   <button type="button" onClick={() => setErroresVisuales(Math.max(0, erroresVisuales - 1))}>-</button>
@@ -263,7 +263,7 @@ export default function InteractiveValidator({ onAddReview, developers, projects
                 </div>
               </div>
 
-              <div className="counter-box">
+              <div className="counter-box counter-warning">
                 <span className="counter-label text-gradient" style={{color: 'var(--color-warning)'}}>Retrabajo</span>
                 <div className="counter-actions">
                   <button type="button" onClick={() => setRetrabajo(Math.max(0, retrabajo - 1))}>-</button>
@@ -274,7 +274,7 @@ export default function InteractiveValidator({ onAddReview, developers, projects
             </div>
           </div>
 
-          <div className="score-live-row">
+          <div className="score-live-row inspect-corners">
             <span className="score-lbl">Score Estimado</span>
             <span className={`score-val ${scorePreview >= 85 ? 'text-success' : scorePreview >= 75 ? 'text-warning' : 'text-danger'}`}>
               {scorePreview}/100
@@ -473,6 +473,26 @@ export default function InteractiveValidator({ onAddReview, developers, projects
           border-radius: var(--radius-xs);
           padding: 8px;
           min-width: 90px;
+          transition: border-color 0.2s ease, transform 0.2s ease;
+        }
+
+        .counter-box:hover {
+          transform: translateY(-1px);
+        }
+
+        .counter-positive {
+          background: linear-gradient(160deg, hsla(var(--hue-success), 70%, 45%, 0.09), var(--bg-app) 65%);
+          border-color: hsla(var(--hue-success), 70%, 45%, 0.25);
+        }
+
+        .counter-danger {
+          background: linear-gradient(160deg, hsla(var(--hue-danger), 85%, 55%, 0.09), var(--bg-app) 65%);
+          border-color: hsla(var(--hue-danger), 85%, 55%, 0.25);
+        }
+
+        .counter-warning {
+          background: linear-gradient(160deg, hsla(var(--hue-warning), 85%, 55%, 0.09), var(--bg-app) 65%);
+          border-color: hsla(var(--hue-warning), 85%, 55%, 0.25);
         }
 
         .counter-label {
@@ -509,7 +529,8 @@ export default function InteractiveValidator({ onAddReview, developers, projects
         }
 
         .counter-value {
-          font-weight: 750;
+          font-family: var(--font-display);
+          font-weight: 700;
           font-size: 0.95rem;
           min-width: 14px;
           text-align: center;
@@ -545,8 +566,9 @@ export default function InteractiveValidator({ onAddReview, developers, projects
         }
 
         .score-val {
+          font-family: var(--font-display);
           font-size: 1.6rem;
-          font-weight: 850;
+          font-weight: 700;
         }
 
         .text-success { color: var(--color-success); }

@@ -184,25 +184,25 @@ export default function MetricCard({
         }
 
         .color-primary {
-          background: hsla(var(--hue-primary), 85%, 64%, 0.1);
+          background: linear-gradient(135deg, hsla(var(--hue-primary), 85%, 64%, 0.24), hsla(var(--hue-primary), 85%, 64%, 0.05));
           color: var(--color-primary);
           border: 1px solid hsla(var(--hue-primary), 85%, 64%, 0.2);
         }
 
         .color-success {
-          background: hsla(var(--hue-success), 70%, 45%, 0.1);
+          background: linear-gradient(135deg, hsla(var(--hue-success), 70%, 45%, 0.24), hsla(var(--hue-success), 70%, 45%, 0.05));
           color: var(--color-success);
           border: 1px solid hsla(var(--hue-success), 70%, 45%, 0.2);
         }
 
         .color-warning {
-          background: hsla(var(--hue-warning), 85%, 55%, 0.1);
+          background: linear-gradient(135deg, hsla(var(--hue-warning), 85%, 55%, 0.24), hsla(var(--hue-warning), 85%, 55%, 0.05));
           color: var(--color-warning);
           border: 1px solid hsla(var(--hue-warning), 85%, 55%, 0.2);
         }
 
         .color-danger {
-          background: hsla(var(--hue-danger), 85%, 55%, 0.1);
+          background: linear-gradient(135deg, hsla(var(--hue-danger), 85%, 55%, 0.24), hsla(var(--hue-danger), 85%, 55%, 0.05));
           color: var(--color-danger);
           border: 1px solid hsla(var(--hue-danger), 85%, 55%, 0.2);
         }
