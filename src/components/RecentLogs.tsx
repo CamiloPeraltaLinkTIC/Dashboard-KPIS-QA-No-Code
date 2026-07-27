@@ -3,14 +3,25 @@
 import React, { useState } from 'react';
 import { DeveloperReview } from '../data/mockData';
 import { formatDateTime } from '@/lib/format';
+import { useAuth } from '@/components/AuthProvider';
 
-interface RecentLogsProps {
-  logs: (DeveloperReview & { developerName: string })[];
+interface LogEntry extends DeveloperReview {
+  developerName: string;
+  developerId: string;
 }
 
-export default function RecentLogs({ logs }: RecentLogsProps) {
+interface RecentLogsProps {
+  logs: LogEntry[];
+  onDeleteReview?: (reviewId: string, developerId: string) => void | Promise<void>;
+}
+
+export default function RecentLogs({ logs, onDeleteReview }: RecentLogsProps) {
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'Administrator';
   const [filterStatus, setFilterStatus] = useState<string>('All');
   const [selectedLogId, setSelectedLogId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<LogEntry | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -42,6 +53,18 @@ export default function RecentLogs({ logs }: RecentLogsProps) {
     if (filterStatus === 'All') return true;
     return log.status === filterStatus;
   });
+
+  const confirmDelete = async () => {
+    if (!pendingDelete || !onDeleteReview) return;
+    setDeleting(true);
+    try {
+      await onDeleteReview(pendingDelete.id, pendingDelete.developerId);
+      setSelectedLogId(null);
+    } finally {
+      setDeleting(false);
+      setPendingDelete(null);
+    }
+  };
 
   const kpiChips = (log: DeveloperReview) => [
     {
@@ -191,11 +214,27 @@ export default function RecentLogs({ logs }: RecentLogsProps) {
                               <span className="detail-id">{log.id}</span>
                               {getStatusBadge(log.status)}
                             </div>
-                            <button className="close-detail-btn" onClick={() => setSelectedLogId(null)} aria-label="Cerrar detalle">
-                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M18 6 6 18M6 6l12 12" />
-                              </svg>
-                            </button>
+                            <div className="detail-header-actions">
+                              {isAdmin && onDeleteReview && (
+                                <button
+                                  className="delete-detail-btn"
+                                  onClick={() => setPendingDelete(log)}
+                                  aria-label="Eliminar calificación"
+                                  title="Eliminar del historial"
+                                >
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6" />
+                                    <path d="M10 11v6M14 11v6" />
+                                  </svg>
+                                  Eliminar
+                                </button>
+                              )}
+                              <button className="close-detail-btn" onClick={() => setSelectedLogId(null)} aria-label="Cerrar detalle">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M18 6 6 18M6 6l12 12" />
+                                </svg>
+                              </button>
+                            </div>
                           </div>
 
                           <h4 className="detail-task-title">{log.taskName} <span className="detail-task-dev">— {log.developerName}</span></h4>
@@ -235,6 +274,42 @@ export default function RecentLogs({ logs }: RecentLogsProps) {
           </tbody>
         </table>
       </div>
+
+      {pendingDelete && (
+        <div className="delete-overlay" onClick={() => !deleting && setPendingDelete(null)}>
+          <div className="delete-card glass" onClick={(e) => e.stopPropagation()}>
+            <div className="delete-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6" />
+                <path d="M10 11v6M14 11v6" />
+              </svg>
+            </div>
+            <h3>¿Eliminar esta calificación?</h3>
+            <p className="delete-desc">
+              <strong>{pendingDelete.taskName}</strong> de <strong>{pendingDelete.developerName}</strong> se
+              borrará del historial de auditorías de forma permanente.
+            </p>
+            <div className="delete-actions">
+              <button
+                type="button"
+                className="delete-cancel-btn"
+                onClick={() => setPendingDelete(null)}
+                disabled={deleting}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="delete-confirm-btn"
+                onClick={confirmDelete}
+                disabled={deleting}
+              >
+                {deleting ? 'Eliminando...' : 'Sí, eliminar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style jsx>{`
         .logs-card {
@@ -489,6 +564,35 @@ export default function RecentLogs({ logs }: RecentLogsProps) {
           font-weight: 600;
         }
 
+        .detail-header-actions {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-shrink: 0;
+        }
+
+        .delete-detail-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          height: 26px;
+          padding: 0 10px;
+          border-radius: 999px;
+          border: 1px solid hsla(var(--hue-danger), 85%, 55%, 0.3);
+          background: hsla(var(--hue-danger), 85%, 55%, 0.08);
+          color: var(--color-danger);
+          font-size: 0.72rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .delete-detail-btn:hover {
+          background: var(--color-danger);
+          border-color: var(--color-danger);
+          color: white;
+        }
+
         .close-detail-btn {
           width: 26px;
           height: 26px;
@@ -622,6 +726,122 @@ export default function RecentLogs({ logs }: RecentLogsProps) {
         .meta-block strong {
           color: var(--text-primary);
           font-weight: 600;
+        }
+
+        /* Confirmación de borrado */
+        .delete-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.55);
+          backdrop-filter: blur(4px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+          padding: 20px;
+          animation: deleteOverlayIn 0.2s ease;
+        }
+
+        .delete-card {
+          position: relative;
+          width: 100%;
+          max-width: 380px;
+          padding: 28px 26px;
+          border-radius: var(--radius-md);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          text-align: center;
+          gap: 6px;
+          box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+          animation: deleteCardIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .delete-icon {
+          width: 52px;
+          height: 52px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: hsla(var(--hue-danger), 85%, 55%, 0.12);
+          color: var(--color-danger);
+          margin-bottom: 6px;
+        }
+
+        .delete-card h3 {
+          font-size: 1.05rem;
+          color: var(--text-primary);
+          margin: 0;
+        }
+
+        .delete-desc {
+          font-size: 0.83rem;
+          color: var(--text-secondary);
+          line-height: 1.5;
+          margin: 4px 0 14px;
+        }
+
+        .delete-desc strong {
+          color: var(--text-primary);
+        }
+
+        .delete-actions {
+          width: 100%;
+          display: flex;
+          gap: 10px;
+        }
+
+        .delete-cancel-btn {
+          flex: 1;
+          padding: 11px;
+          border-radius: var(--radius-sm);
+          border: 1px solid var(--border-color);
+          background: rgba(255, 255, 255, 0.03);
+          color: var(--text-secondary);
+          font-weight: 600;
+          font-size: 0.85rem;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .delete-cancel-btn:hover:not(:disabled) {
+          background: rgba(255, 255, 255, 0.06);
+          color: var(--text-primary);
+        }
+
+        .delete-confirm-btn {
+          flex: 1;
+          padding: 11px;
+          border-radius: var(--radius-sm);
+          border: none;
+          background: var(--color-danger);
+          color: white;
+          font-weight: 700;
+          font-size: 0.85rem;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .delete-confirm-btn:hover:not(:disabled) {
+          filter: brightness(1.1);
+          transform: translateY(-1px);
+        }
+
+        .delete-cancel-btn:disabled,
+        .delete-confirm-btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        @keyframes deleteOverlayIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+
+        @keyframes deleteCardIn {
+          from { opacity: 0; transform: scale(0.92) translateY(8px); }
+          to { opacity: 1; transform: scale(1) translateY(0); }
         }
       `}</style>
     </div>

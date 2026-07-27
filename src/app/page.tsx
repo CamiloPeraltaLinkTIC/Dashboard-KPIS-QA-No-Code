@@ -14,6 +14,7 @@ import AdminPanel from '@/components/AdminPanel';
 import { useAuth } from '@/components/AuthProvider';
 import { supabase } from '@/lib/supabase/client';
 import { formatDateTime } from '@/lib/format';
+import { deleteKpiReview } from '@/app/actions/admin';
 
 import {
   DeveloperStat,
@@ -167,6 +168,25 @@ export default function DashboardHome() {
     };
   }, [profile]);
 
+  // Recalcula los agregados de un desarrollador a partir de su lista de reviews
+  // (usado tras agregar o eliminar una calificación, para actualizar el estado
+  // local sin esperar al próximo refresco automático).
+  const computeDevAggregates = (reviews: DeveloperReview[]) => {
+    const totalTasks = reviews.length;
+    const approvedFirstTry = reviews.filter((r) => r.status === 'approved').length;
+    const complianceRate = totalTasks > 0 ? Math.round(reviews.reduce((sum, r) => sum + r.score, 0) / totalTasks) : 100;
+
+    const kpisTotal = {
+      pixelPerfect: totalTasks > 0 ? Math.round(reviews.reduce((sum, r) => sum + r.kpis.pixelPerfect, 0) / totalTasks) : 100,
+      cumplimientoDod: totalTasks > 0 ? Math.round(reviews.reduce((sum, r) => sum + r.kpis.cumplimientoDod, 0) / totalTasks) : 100,
+      calidadVisual: totalTasks > 0 ? Math.round(reviews.reduce((sum, r) => sum + r.kpis.calidadVisual, 0) / totalTasks) : 100,
+      erroresVisuales: reviews.reduce((sum, r) => sum + r.kpis.erroresVisuales, 0),
+      retrabajo: reviews.reduce((sum, r) => sum + r.kpis.retrabajo, 0),
+    };
+
+    return { totalTasks, approvedFirstTry, complianceRate, kpisTotal };
+  };
+
   const handleAddReview = async (devId: string, projectId: string, newReview: DeveloperReview) => {
     // Attempt to save to Supabase
     if (profile?.id) {
@@ -204,26 +224,7 @@ export default function DashboardHome() {
           return prevDevs.map((dev) => {
             if (dev.id === devId) {
               const updatedReviews = [newReview, ...dev.reviews];
-              const totalTasks = updatedReviews.length;
-              const approvedFirstTry = updatedReviews.filter((r) => r.status === 'approved').length;
-              const complianceRate = totalTasks > 0 ? Math.round(updatedReviews.reduce((sum, r) => sum + r.score, 0) / totalTasks) : 100;
-              
-              const kpisTotal = {
-                pixelPerfect: totalTasks > 0 ? Math.round(updatedReviews.reduce((sum, r) => sum + r.kpis.pixelPerfect, 0) / totalTasks) : 100,
-                cumplimientoDod: totalTasks > 0 ? Math.round(updatedReviews.reduce((sum, r) => sum + r.kpis.cumplimientoDod, 0) / totalTasks) : 100,
-                calidadVisual: totalTasks > 0 ? Math.round(updatedReviews.reduce((sum, r) => sum + r.kpis.calidadVisual, 0) / totalTasks) : 100,
-                erroresVisuales: updatedReviews.reduce((sum, r) => sum + r.kpis.erroresVisuales, 0),
-                retrabajo: updatedReviews.reduce((sum, r) => sum + r.kpis.retrabajo, 0),
-              };
-
-              return {
-                ...dev,
-                reviews: updatedReviews,
-                totalTasks,
-                approvedFirstTry,
-                complianceRate,
-                kpisTotal
-              };
+              return { ...dev, reviews: updatedReviews, ...computeDevAggregates(updatedReviews) };
             }
             return dev;
           });
@@ -234,14 +235,35 @@ export default function DashboardHome() {
     }
   };
 
+  // Solo admin puede borrar del historial de auditorías (verificado también
+  // en el servidor). Borra en Supabase y actualiza el estado local al toque.
+  const handleDeleteReview = async (reviewId: string, developerId: string) => {
+    if (!profile?.id) return;
+
+    const result = await deleteKpiReview(reviewId, profile.id);
+    if (!result.success) {
+      alert('Error al eliminar: ' + result.error);
+      return;
+    }
+
+    setDevelopers((prevDevs) =>
+      prevDevs.map((dev) => {
+        if (dev.id !== developerId) return dev;
+        const updatedReviews = dev.reviews.filter((r) => r.id !== reviewId);
+        return { ...dev, reviews: updatedReviews, ...computeDevAggregates(updatedReviews) };
+      })
+    );
+  };
+
   // Flatten reviews to display in the historical logs list
   const allReviews = useMemo(() => {
-    const list: (DeveloperReview & { developerName: string })[] = [];
+    const list: (DeveloperReview & { developerName: string; developerId: string })[] = [];
     developers.forEach((dev) => {
       dev.reviews.forEach((rev) => {
         list.push({
           ...rev,
-          developerName: dev.name
+          developerName: dev.name,
+          developerId: dev.id
         });
       });
     });
@@ -486,13 +508,13 @@ export default function DashboardHome() {
               <DeveloperLeaderboard developers={developers} />
 
               {/* Audit history list */}
-              <RecentLogs logs={filteredReviews} />
+              <RecentLogs logs={filteredReviews} onDeleteReview={handleDeleteReview} />
             </div>
           )}
 
           {currentTab === 'metrics' && (
             <div className="view-pane animate-fade-in">
-              <RecentLogs logs={filteredReviews} />
+              <RecentLogs logs={filteredReviews} onDeleteReview={handleDeleteReview} />
             </div>
           )}
 

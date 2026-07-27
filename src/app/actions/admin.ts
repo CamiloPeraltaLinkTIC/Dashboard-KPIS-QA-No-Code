@@ -214,6 +214,44 @@ export async function createAssignment(formData: FormData) {
   }
 }
 
+export async function deleteKpiReview(reviewId: string, requestedByUserId: string) {
+  if (!supabaseServiceKey) {
+    return { success: false, error: 'SUPABASE_SERVICE_ROLE_KEY is not configured.' };
+  }
+
+  if (!reviewId || !requestedByUserId) {
+    return { success: false, error: 'Faltan datos para eliminar la calificación.' };
+  }
+
+  try {
+    // El historial de auditorías es información sensible: se verifica en el
+    // servidor que quien pide el borrado sea realmente admin, no solo que la
+    // pestaña esté oculta para otros roles en el cliente.
+    const { data: requester, error: requesterError } = await supabaseAdmin
+      .from('nocode_profiles')
+      .select('role')
+      .eq('id', requestedByUserId)
+      .single();
+
+    if (requesterError || !requester || !['admin', 'Administrator'].includes(requester.role)) {
+      return { success: false, error: 'No tienes permisos para eliminar registros de auditoría.' };
+    }
+
+    const { error } = await supabaseAdmin
+      .from('nocode_kpis')
+      .delete()
+      .eq('id', reviewId);
+
+    if (error) {
+      return { success: false, error: `Error al eliminar la calificación: ${error.message}` };
+    }
+
+    return { success: true, message: 'Calificación eliminada del historial.' };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Error inesperado.' };
+  }
+}
+
 export async function deleteAssignment(assignmentId: string) {
   if (!supabaseServiceKey) {
     return { success: false, error: 'SUPABASE_SERVICE_ROLE_KEY is not configured.' };
