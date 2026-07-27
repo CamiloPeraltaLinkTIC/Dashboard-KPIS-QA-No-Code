@@ -81,6 +81,17 @@ export default function InteractiveValidator({ onAddReview, developers, projects
   const [erroresVisuales, setErroresVisuales] = useState(0);
   const [retrabajo, setRetrabajo] = useState(0);
 
+  // Permite escribir el valor directamente en los contadores (además de los botones -/+)
+  const handleCounterInput = (raw: string, setter: (v: number) => void, max: number) => {
+    if (raw === '') {
+      setter(0);
+      return;
+    }
+    const parsed = Number(raw);
+    if (Number.isNaN(parsed)) return;
+    setter(Math.min(max, Math.max(0, Math.trunc(parsed))));
+  };
+
   // El score se calcula a partir de los KPIs: promedio de los porcentajes menos penalizaciones
   const calculateScore = () => {
     const baseScore = Math.round((pixelPerfect + cumplimientoDod + calidadVisual) / 3);
@@ -268,9 +279,18 @@ export default function InteractiveValidator({ onAddReview, developers, projects
                   Pixel Perfect (%)
                 </span>
                 <div className="counter-actions">
-                  <button type="button" onClick={() => setPixelPerfect(Math.max(0, pixelPerfect - 5))}>-</button>
-                  <span className="counter-value">{pixelPerfect}</span>
-                  <button type="button" onClick={() => setPixelPerfect(Math.min(100, pixelPerfect + 5))}>+</button>
+                  <button type="button" onClick={() => setPixelPerfect(Math.max(0, pixelPerfect - 5))} aria-label="Disminuir Pixel Perfect">-</button>
+                  <input
+                    type="number"
+                    className="counter-value"
+                    value={pixelPerfect}
+                    min={0}
+                    max={100}
+                    onChange={(e) => handleCounterInput(e.target.value, setPixelPerfect, 100)}
+                    onFocus={(e) => e.target.select()}
+                    aria-label="Pixel Perfect"
+                  />
+                  <button type="button" onClick={() => setPixelPerfect(Math.min(100, pixelPerfect + 5))} aria-label="Aumentar Pixel Perfect">+</button>
                 </div>
               </div>
 
@@ -283,9 +303,18 @@ export default function InteractiveValidator({ onAddReview, developers, projects
                   Cumplimiento DoD (%)
                 </span>
                 <div className="counter-actions">
-                  <button type="button" onClick={() => setCumplimientoDod(Math.max(0, cumplimientoDod - 5))}>-</button>
-                  <span className="counter-value">{cumplimientoDod}</span>
-                  <button type="button" onClick={() => setCumplimientoDod(Math.min(100, cumplimientoDod + 5))}>+</button>
+                  <button type="button" onClick={() => setCumplimientoDod(Math.max(0, cumplimientoDod - 5))} aria-label="Disminuir Cumplimiento DoD">-</button>
+                  <input
+                    type="number"
+                    className="counter-value"
+                    value={cumplimientoDod}
+                    min={0}
+                    max={100}
+                    onChange={(e) => handleCounterInput(e.target.value, setCumplimientoDod, 100)}
+                    onFocus={(e) => e.target.select()}
+                    aria-label="Cumplimiento DoD"
+                  />
+                  <button type="button" onClick={() => setCumplimientoDod(Math.min(100, cumplimientoDod + 5))} aria-label="Aumentar Cumplimiento DoD">+</button>
                 </div>
               </div>
 
@@ -297,9 +326,18 @@ export default function InteractiveValidator({ onAddReview, developers, projects
                   Calidad Visual (%)
                 </span>
                 <div className="counter-actions">
-                  <button type="button" onClick={() => setCalidadVisual(Math.max(0, calidadVisual - 5))}>-</button>
-                  <span className="counter-value">{calidadVisual}</span>
-                  <button type="button" onClick={() => setCalidadVisual(Math.min(100, calidadVisual + 5))}>+</button>
+                  <button type="button" onClick={() => setCalidadVisual(Math.max(0, calidadVisual - 5))} aria-label="Disminuir Calidad Visual">-</button>
+                  <input
+                    type="number"
+                    className="counter-value"
+                    value={calidadVisual}
+                    min={0}
+                    max={100}
+                    onChange={(e) => handleCounterInput(e.target.value, setCalidadVisual, 100)}
+                    onFocus={(e) => e.target.select()}
+                    aria-label="Calidad Visual"
+                  />
+                  <button type="button" onClick={() => setCalidadVisual(Math.min(100, calidadVisual + 5))} aria-label="Aumentar Calidad Visual">+</button>
                 </div>
               </div>
 
@@ -313,9 +351,18 @@ export default function InteractiveValidator({ onAddReview, developers, projects
                   Errores Visuales y de Diseño
                 </span>
                 <div className="counter-actions">
-                  <button type="button" onClick={() => setErroresVisuales(Math.max(0, erroresVisuales - 1))}>-</button>
-                  <span className="counter-value">{erroresVisuales}</span>
-                  <button type="button" onClick={() => setErroresVisuales(erroresVisuales + 1)}>+</button>
+                  <button type="button" onClick={() => setErroresVisuales(Math.max(0, erroresVisuales - 1))} aria-label="Disminuir Errores Visuales">-</button>
+                  <input
+                    type="number"
+                    className="counter-value"
+                    value={erroresVisuales}
+                    min={0}
+                    max={999}
+                    onChange={(e) => handleCounterInput(e.target.value, setErroresVisuales, 999)}
+                    onFocus={(e) => e.target.select()}
+                    aria-label="Errores Visuales"
+                  />
+                  <button type="button" onClick={() => setErroresVisuales(erroresVisuales + 1)} aria-label="Aumentar Errores Visuales">+</button>
                 </div>
               </div>
 
@@ -328,9 +375,18 @@ export default function InteractiveValidator({ onAddReview, developers, projects
                   Retrabajo
                 </span>
                 <div className="counter-actions">
-                  <button type="button" onClick={() => setRetrabajo(Math.max(0, retrabajo - 1))}>-</button>
-                  <span className="counter-value">{retrabajo}</span>
-                  <button type="button" onClick={() => setRetrabajo(retrabajo + 1)}>+</button>
+                  <button type="button" onClick={() => setRetrabajo(Math.max(0, retrabajo - 1))} aria-label="Disminuir Retrabajo">-</button>
+                  <input
+                    type="number"
+                    className="counter-value"
+                    value={retrabajo}
+                    min={0}
+                    max={999}
+                    onChange={(e) => handleCounterInput(e.target.value, setRetrabajo, 999)}
+                    onFocus={(e) => e.target.select()}
+                    aria-label="Retrabajo"
+                  />
+                  <button type="button" onClick={() => setRetrabajo(retrabajo + 1)} aria-label="Aumentar Retrabajo">+</button>
                 </div>
               </div>
             </div>
@@ -721,6 +777,8 @@ export default function InteractiveValidator({ onAddReview, developers, projects
           display: flex;
           align-items: center;
           gap: 10px;
+          margin-top: auto;
+          padding-top: 6px;
         }
 
         .counter-actions button {
@@ -748,8 +806,32 @@ export default function InteractiveValidator({ onAddReview, developers, projects
           font-family: var(--font-display);
           font-weight: 700;
           font-size: 0.95rem;
-          min-width: 14px;
+          width: 38px;
           text-align: center;
+          color: var(--text-primary);
+          background: transparent;
+          border: 1px solid transparent;
+          border-radius: var(--radius-xs);
+          padding: 3px 0;
+          -moz-appearance: textfield;
+          transition: border-color 0.2s ease, background-color 0.2s ease;
+        }
+
+        .counter-value::-webkit-outer-spin-button,
+        .counter-value::-webkit-inner-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+
+        .counter-value:hover {
+          border-color: var(--border-color);
+        }
+
+        .counter-value:focus {
+          outline: none;
+          border-color: var(--color-primary);
+          background: rgba(255, 255, 255, 0.05);
+          box-shadow: 0 0 0 3px var(--color-primary-glow);
         }
 
         .submit-qa-btn {
