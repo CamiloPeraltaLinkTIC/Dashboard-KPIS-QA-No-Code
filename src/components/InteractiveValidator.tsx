@@ -157,78 +157,116 @@ export default function InteractiveValidator({ onAddReview, developers, projects
       {/* Form Card */}
       <div className="validator-card glass">
         <div className="card-header">
-          <h3>Nueva Calificación de Desarrollador</h3>
-          <p>Evalúa el cumplimiento de directrices técnicas de una entrega específica</p>
+          <span className="card-header-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m9 12 2 2 4-4" />
+              <path d="M5 7a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z" />
+            </svg>
+          </span>
+          <div>
+            <h3>Nueva Calificación de Desarrollador</h3>
+            <p>Evalúa el cumplimiento de directrices técnicas de una entrega específica</p>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="validator-form">
-          <div className="form-group">
-            <label htmlFor="val-dev">Desarrollador a Calificar</label>
-            <select
-              id="val-dev"
-              value={selectedDevId}
-              onChange={(e) => setSelectedDevId(e.target.value)}
-            >
-              {developers.map((dev) => (
-                <option key={dev.id} value={dev.id}>
-                  {dev.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="val-project">Proyecto</label>
-            <select
-              id="val-project"
-              value={selectedProjectId}
-              onChange={(e) => setSelectedProjectId(e.target.value)}
-              required
-              disabled={availableProjects.length === 0}
-            >
-              {availableProjects.length === 0 ? (
-                <option value="">Este desarrollador no tiene proyectos enlazados</option>
-              ) : (
-                <>
-                  <option value="">-- Selecciona Proyecto --</option>
-                  {availableProjects.map((proj) => (
-                    <option key={proj.id} value={proj.id}>
-                      {proj.name}
+          <div className="form-row-2col">
+            <div className="form-group">
+              <label htmlFor="val-dev">Desarrollador a Calificar</label>
+              <div className="select-icon-wrap">
+                <svg className="field-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+                <select
+                  id="val-dev"
+                  value={selectedDevId}
+                  onChange={(e) => setSelectedDevId(e.target.value)}
+                >
+                  {developers.map((dev) => (
+                    <option key={dev.id} value={dev.id}>
+                      {dev.name}
                     </option>
                   ))}
-                </>
-              )}
-            </select>
+                </select>
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="val-project">Proyecto</label>
+              <div className="select-icon-wrap">
+                <svg className="field-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
+                </svg>
+                <select
+                  id="val-project"
+                  value={selectedProjectId}
+                  onChange={(e) => setSelectedProjectId(e.target.value)}
+                  required
+                  disabled={availableProjects.length === 0}
+                >
+                  {availableProjects.length === 0 ? (
+                    <option value="">Sin proyectos enlazados</option>
+                  ) : (
+                    <>
+                      <option value="">-- Selecciona Proyecto --</option>
+                      {availableProjects.map((proj) => (
+                        <option key={proj.id} value={proj.id}>
+                          {proj.name}
+                        </option>
+                      ))}
+                    </>
+                  )}
+                </select>
+              </div>
+            </div>
           </div>
 
           <div className="form-group">
             <label htmlFor="task-name">Tarea / Feature Evaluada</label>
-            <input
-              id="task-name"
-              type="text"
-              placeholder="Ej. Integración Stripe Checkout o Pantalla de Configuración"
-              value={taskName}
-              onChange={(e) => setTaskName(e.target.value)}
-              required
-            />
+            <div className="input-icon-wrap">
+              <svg className="field-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect width="8" height="4" x="8" y="2" rx="1" ry="1" />
+                <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+                <path d="M9 12h6M9 16h6" />
+              </svg>
+              <input
+                id="task-name"
+                type="text"
+                placeholder="Ej. Integración Stripe Checkout o Pantalla de Configuración"
+                value={taskName}
+                onChange={(e) => setTaskName(e.target.value)}
+                required
+              />
+            </div>
           </div>
 
-          <div className="form-group">
-            <label>Auditor QA Evaluador</label>
-            <input
-              type="text"
-              value={profile?.username || 'QA Analyst'}
-              disabled
-              style={{ opacity: 0.8, cursor: 'not-allowed', background: 'rgba(255,255,255,0.05)' }}
-            />
+          <div className="qa-auditor-chip">
+            <span className="qa-auditor-avatar">{(profile?.username || 'QA').substring(0, 2).toUpperCase()}</span>
+            <div className="qa-auditor-text">
+              <span className="qa-auditor-label">Auditor QA Evaluador</span>
+              <strong className="qa-auditor-name">{profile?.username || 'QA Analyst'}</strong>
+            </div>
           </div>
 
           {/* KPIs Section */}
           <div className="bug-counter-section">
-            <h4>Métricas de Calidad</h4>
+            <h4>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+              Métricas de Calidad
+            </h4>
             <div className="counters-row">
               <div className="counter-box counter-positive">
-                <span className="counter-label text-gradient">Pixel Perfect (%)</span>
+                <span className="counter-label">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                  Pixel Perfect (%)
+                </span>
                 <div className="counter-actions">
                   <button type="button" onClick={() => setPixelPerfect(Math.max(0, pixelPerfect - 5))}>-</button>
                   <span className="counter-value">{pixelPerfect}</span>
@@ -237,7 +275,13 @@ export default function InteractiveValidator({ onAddReview, developers, projects
               </div>
 
               <div className="counter-box counter-positive">
-                <span className="counter-label text-gradient">Cumplimiento DoD (%)</span>
+                <span className="counter-label">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="m9 11 3 3L22 4" />
+                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                  </svg>
+                  Cumplimiento DoD (%)
+                </span>
                 <div className="counter-actions">
                   <button type="button" onClick={() => setCumplimientoDod(Math.max(0, cumplimientoDod - 5))}>-</button>
                   <span className="counter-value">{cumplimientoDod}</span>
@@ -246,7 +290,12 @@ export default function InteractiveValidator({ onAddReview, developers, projects
               </div>
 
               <div className="counter-box counter-positive">
-                <span className="counter-label text-gradient">Calidad Visual (%)</span>
+                <span className="counter-label">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 3l2.09 6.26L20 9.27l-5 3.64L16.18 21 12 17.27 7.82 21 9 12.91l-5-3.64 5.91-.01z" />
+                  </svg>
+                  Calidad Visual (%)
+                </span>
                 <div className="counter-actions">
                   <button type="button" onClick={() => setCalidadVisual(Math.max(0, calidadVisual - 5))}>-</button>
                   <span className="counter-value">{calidadVisual}</span>
@@ -255,7 +304,14 @@ export default function InteractiveValidator({ onAddReview, developers, projects
               </div>
 
               <div className="counter-box counter-danger">
-                <span className="counter-label text-gradient" style={{color: 'var(--color-danger)'}}>Errores Visuales y de Diseño</span>
+                <span className="counter-label" style={{color: 'var(--color-danger)'}}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+                    <path d="M12 9v4" />
+                    <path d="M12 17h.01" />
+                  </svg>
+                  Errores Visuales y de Diseño
+                </span>
                 <div className="counter-actions">
                   <button type="button" onClick={() => setErroresVisuales(Math.max(0, erroresVisuales - 1))}>-</button>
                   <span className="counter-value">{erroresVisuales}</span>
@@ -264,7 +320,13 @@ export default function InteractiveValidator({ onAddReview, developers, projects
               </div>
 
               <div className="counter-box counter-warning">
-                <span className="counter-label text-gradient" style={{color: 'var(--color-warning)'}}>Retrabajo</span>
+                <span className="counter-label" style={{color: 'var(--color-warning)'}}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                    <path d="M3 3v5h5" />
+                  </svg>
+                  Retrabajo
+                </span>
                 <div className="counter-actions">
                   <button type="button" onClick={() => setRetrabajo(Math.max(0, retrabajo - 1))}>-</button>
                   <span className="counter-value">{retrabajo}</span>
@@ -292,7 +354,7 @@ export default function InteractiveValidator({ onAddReview, developers, projects
             ></textarea>
           </div>
 
-          <button type="submit" className="submit-qa-btn glow-pulse">
+          <button type="submit" className="submit-qa-btn">
             Guardar Calificación en Historial
           </button>
         </form>
@@ -346,7 +408,7 @@ export default function InteractiveValidator({ onAddReview, developers, projects
       <style jsx>{`
         .validator-grid {
           display: grid;
-          grid-template-columns: minmax(0, 680px);
+          grid-template-columns: minmax(0, 760px);
           justify-content: center;
           gap: 24px;
           align-items: start;
@@ -381,6 +443,25 @@ export default function InteractiveValidator({ onAddReview, developers, projects
           gap: 20px;
         }
 
+        .card-header {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+        }
+
+        .card-header-icon {
+          width: 40px;
+          height: 40px;
+          border-radius: var(--radius-sm);
+          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: white;
+          background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+          box-shadow: var(--shadow-glow);
+        }
+
         .card-header h3 {
           font-size: 1.1rem;
           color: var(--text-primary);
@@ -398,6 +479,37 @@ export default function InteractiveValidator({ onAddReview, developers, projects
           gap: 16px;
         }
 
+        .validator-form > *:not(.submit-qa-btn) {
+          opacity: 0;
+          animation: fieldIn 0.4s ease-out forwards;
+        }
+
+        .validator-form > *:nth-child(1) { animation-delay: 0.03s; }
+        .validator-form > *:nth-child(2) { animation-delay: 0.08s; }
+        .validator-form > *:nth-child(3) { animation-delay: 0.13s; }
+        .validator-form > *:nth-child(4) { animation-delay: 0.18s; }
+        .validator-form > *:nth-child(5) { animation-delay: 0.23s; }
+        .validator-form > *:nth-child(6) { animation-delay: 0.28s; }
+        .validator-form > *:nth-child(7) { animation-delay: 0.33s; }
+
+        @keyframes fieldIn {
+          from { opacity: 0; transform: translateY(6px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .validator-form > * {
+            animation: none !important;
+            opacity: 1 !important;
+          }
+        }
+
+        .form-row-2col {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+          gap: 16px;
+        }
+
         .form-group {
           display: flex;
           flex-direction: column;
@@ -410,8 +522,100 @@ export default function InteractiveValidator({ onAddReview, developers, projects
           color: var(--text-secondary);
         }
 
-        .validator-form input[type="text"],
-        .validator-form select,
+        .input-icon-wrap,
+        .select-icon-wrap {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid var(--border-color);
+          border-radius: var(--radius-sm);
+          padding: 0 14px;
+          transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        [data-theme="light"] .input-icon-wrap,
+        [data-theme="light"] .select-icon-wrap {
+          background: rgba(0, 0, 0, 0.02);
+        }
+
+        .input-icon-wrap:focus-within,
+        .select-icon-wrap:focus-within {
+          border-color: var(--color-primary);
+          box-shadow: 0 0 0 3px var(--border-focus);
+        }
+
+        .field-icon {
+          color: var(--text-muted);
+          flex-shrink: 0;
+          transition: color 0.2s ease;
+        }
+
+        .input-icon-wrap:focus-within .field-icon,
+        .select-icon-wrap:focus-within .field-icon {
+          color: var(--color-primary);
+        }
+
+        .input-icon-wrap input,
+        .select-icon-wrap select {
+          flex: 1;
+          min-width: 0;
+          border: none;
+          background: transparent;
+          padding: 10px 0;
+          color: var(--text-primary);
+          font-size: 0.85rem;
+          outline: none;
+        }
+
+        .qa-auditor-chip {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 10px 14px;
+          border-radius: var(--radius-sm);
+          border: 1px solid var(--border-color);
+          background: rgba(255, 255, 255, 0.02);
+        }
+
+        [data-theme="light"] .qa-auditor-chip {
+          background: rgba(0, 0, 0, 0.015);
+        }
+
+        .qa-auditor-avatar {
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: linear-gradient(135deg, var(--color-secondary), var(--color-primary));
+          color: white;
+          font-weight: 700;
+          font-size: 0.75rem;
+        }
+
+        .qa-auditor-text {
+          display: flex;
+          flex-direction: column;
+          gap: 1px;
+          min-width: 0;
+        }
+
+        .qa-auditor-label {
+          font-size: 0.68rem;
+          color: var(--text-muted);
+          text-transform: uppercase;
+          letter-spacing: 0.02em;
+          font-weight: 600;
+        }
+
+        .qa-auditor-name {
+          font-size: 0.85rem;
+          color: var(--text-primary);
+        }
+
         .validator-form textarea {
           background: rgba(255, 255, 255, 0.04);
           border: 1px solid var(--border-color);
@@ -423,14 +627,10 @@ export default function InteractiveValidator({ onAddReview, developers, projects
           transition: border-color 0.2s ease, box-shadow 0.2s ease;
         }
 
-        [data-theme="light"] .validator-form input[type="text"],
-        [data-theme="light"] .validator-form select,
         [data-theme="light"] .validator-form textarea {
           background: rgba(0, 0, 0, 0.02);
         }
 
-        .validator-form input[type="text"]:focus,
-        .validator-form select:focus,
         .validator-form textarea:focus {
           border-color: var(--color-primary);
           box-shadow: 0 0 0 3px var(--border-focus);
@@ -448,11 +648,18 @@ export default function InteractiveValidator({ onAddReview, developers, projects
         }
 
         .bug-counter-section h4 {
+          display: flex;
+          align-items: center;
+          gap: 6px;
           font-size: 0.8rem;
           color: var(--text-secondary);
           margin-bottom: 12px;
           text-transform: uppercase;
           letter-spacing: 0.02em;
+        }
+
+        .bug-counter-section h4 svg {
+          color: var(--color-primary);
         }
 
         .counters-row {
@@ -485,6 +692,10 @@ export default function InteractiveValidator({ onAddReview, developers, projects
           border-color: hsla(var(--hue-success), 70%, 45%, 0.25);
         }
 
+        .counter-positive .counter-label {
+          color: var(--color-success);
+        }
+
         .counter-danger {
           background: linear-gradient(160deg, hsla(var(--hue-danger), 85%, 55%, 0.09), var(--bg-app) 65%);
           border-color: hsla(var(--hue-danger), 85%, 55%, 0.25);
@@ -496,9 +707,14 @@ export default function InteractiveValidator({ onAddReview, developers, projects
         }
 
         .counter-label {
-          font-size: 0.72rem;
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          font-size: 0.68rem;
           font-weight: 700;
           text-transform: uppercase;
+          text-align: center;
+          justify-content: center;
         }
 
         .counter-actions {
@@ -546,6 +762,8 @@ export default function InteractiveValidator({ onAddReview, developers, projects
           border-radius: var(--radius-sm);
           cursor: pointer;
           font-size: 0.9rem;
+          opacity: 0;
+          animation: fieldIn 0.4s ease-out 0.33s forwards, pulse-glow 3s ease-in-out 0.73s infinite;
           transition: transform 0.2s ease;
         }
 
@@ -555,6 +773,13 @@ export default function InteractiveValidator({ onAddReview, developers, projects
 
         .submit-qa-btn:active {
           transform: translateY(1px);
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .submit-qa-btn {
+            animation: none !important;
+            opacity: 1 !important;
+          }
         }
 
         /* Indicador de Score */
