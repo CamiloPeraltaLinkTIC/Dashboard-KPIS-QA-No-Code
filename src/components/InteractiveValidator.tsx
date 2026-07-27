@@ -32,6 +32,11 @@ export default function InteractiveValidator({ onAddReview, developers, projects
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [taskName, setTaskName] = useState('');
   const [notes, setNotes] = useState('');
+  const [successModal, setSuccessModal] = useState<{
+    devName: string;
+    score: number;
+    status: 'approved' | 'rejected' | 'in_review';
+  } | null>(null);
 
   // Solo los proyectos enlazados al desarrollador seleccionado
   const availableProjects = useMemo(() => {
@@ -127,7 +132,13 @@ export default function InteractiveValidator({ onAddReview, developers, projects
     setRetrabajo(0);
 
     const selectedDevName = developers.find(d => d.id === selectedDevId)?.name || 'Desarrollador';
-    alert(`¡Evaluación registrada con éxito!\nDesarrollador: ${selectedDevName}\nScore: ${newReview.score}/100\nEstado: ${newReview.status.toUpperCase()}`);
+    setSuccessModal({ devName: selectedDevName, score: newReview.score, status: newReview.status });
+  };
+
+  const statusInfo: Record<'approved' | 'rejected' | 'in_review', { label: string; className: string; icon: string }> = {
+    approved: { label: 'Aprobado', className: 'text-success', icon: '✓' },
+    rejected: { label: 'Rechazado', className: 'text-danger', icon: '✕' },
+    in_review: { label: 'En Revisión', className: 'text-warning', icon: '⏱' },
   };
 
   const scorePreview = calculateScore();
@@ -277,6 +288,51 @@ export default function InteractiveValidator({ onAddReview, developers, projects
           </button>
         </form>
       </div>
+
+      {successModal && (
+        <div className="success-overlay" onClick={() => setSuccessModal(null)}>
+          <div className="success-card glass" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="success-close"
+              onClick={() => setSuccessModal(null)}
+              aria-label="Cerrar"
+            >
+              ✕
+            </button>
+
+            <div className={`success-icon ${statusInfo[successModal.status].className}`}>
+              {statusInfo[successModal.status].icon}
+            </div>
+
+            <h3>¡Evaluación registrada con éxito!</h3>
+            <p className="success-subtitle">La calificación quedó guardada en el historial del desarrollador</p>
+
+            <div className="success-details">
+              <div className="success-row">
+                <span className="success-label">Desarrollador</span>
+                <span className="success-value">{successModal.devName}</span>
+              </div>
+              <div className="success-row">
+                <span className="success-label">Score</span>
+                <span className={`success-value success-score ${statusInfo[successModal.status].className}`}>
+                  {successModal.score}/100
+                </span>
+              </div>
+              <div className="success-row">
+                <span className="success-label">Estado</span>
+                <span className={`status-pill ${statusInfo[successModal.status].className}`}>
+                  {statusInfo[successModal.status].label}
+                </span>
+              </div>
+            </div>
+
+            <button type="button" className="success-confirm-btn" onClick={() => setSuccessModal(null)}>
+              Entendido
+            </button>
+          </div>
+        </div>
+      )}
 
       <style jsx>{`
         .validator-grid {
@@ -487,6 +543,172 @@ export default function InteractiveValidator({ onAddReview, developers, projects
         .text-success { color: var(--color-success); }
         .text-warning { color: var(--color-warning); }
         .text-danger { color: var(--color-danger); }
+
+        /* Popup de confirmación */
+        .success-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.55);
+          backdrop-filter: blur(4px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+          padding: 20px;
+          animation: overlayFadeIn 0.2s ease;
+        }
+
+        .success-card {
+          position: relative;
+          width: 100%;
+          max-width: 380px;
+          padding: 32px 28px 28px;
+          border-radius: var(--radius-md);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          text-align: center;
+          gap: 6px;
+          box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+          animation: cardPopIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .success-close {
+          position: absolute;
+          top: 14px;
+          right: 14px;
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
+          border: 1px solid var(--border-color);
+          background: rgba(255, 255, 255, 0.05);
+          color: var(--text-secondary);
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 0.75rem;
+          transition: all 0.2s ease;
+        }
+
+        .success-close:hover {
+          background: var(--color-danger);
+          border-color: var(--color-danger);
+          color: white;
+        }
+
+        .success-icon {
+          width: 60px;
+          height: 60px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 1.8rem;
+          font-weight: 800;
+          background: currentColor;
+          margin-bottom: 8px;
+        }
+
+        .success-icon.text-success { background: var(--color-success); color: white !important; }
+        .success-icon.text-warning { background: var(--color-warning); color: white !important; }
+        .success-icon.text-danger { background: var(--color-danger); color: white !important; }
+
+        .success-card h3 {
+          font-size: 1.1rem;
+          color: var(--text-primary);
+          margin: 0;
+        }
+
+        .success-subtitle {
+          font-size: 0.8rem;
+          color: var(--text-secondary);
+          margin: 0 0 12px;
+        }
+
+        .success-details {
+          width: 100%;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          padding: 16px;
+          border-radius: var(--radius-sm);
+          border: 1px solid var(--border-color);
+          background: rgba(255, 255, 255, 0.02);
+        }
+
+        [data-theme="light"] .success-details {
+          background: rgba(0, 0, 0, 0.02);
+        }
+
+        .success-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+        }
+
+        .success-label {
+          font-size: 0.75rem;
+          color: var(--text-muted);
+          text-transform: uppercase;
+          letter-spacing: 0.02em;
+        }
+
+        .success-value {
+          font-size: 0.9rem;
+          font-weight: 700;
+          color: var(--text-primary);
+        }
+
+        .success-score {
+          font-size: 1.1rem;
+        }
+
+        .status-pill {
+          font-size: 0.72rem;
+          font-weight: 700;
+          text-transform: uppercase;
+          padding: 4px 10px;
+          border-radius: 999px;
+          color: white !important;
+        }
+
+        .status-pill.text-success { background: var(--color-success); }
+        .status-pill.text-warning { background: var(--color-warning); }
+        .status-pill.text-danger { background: var(--color-danger); }
+
+        .success-confirm-btn {
+          width: 100%;
+          margin-top: 18px;
+          background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+          color: white;
+          font-weight: 700;
+          border: none;
+          padding: 12px;
+          border-radius: var(--radius-sm);
+          cursor: pointer;
+          font-size: 0.88rem;
+          transition: transform 0.2s ease;
+        }
+
+        .success-confirm-btn:hover {
+          transform: translateY(-1px);
+        }
+
+        .success-confirm-btn:active {
+          transform: translateY(1px);
+        }
+
+        @keyframes overlayFadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+
+        @keyframes cardPopIn {
+          from { opacity: 0; transform: scale(0.92) translateY(8px); }
+          to { opacity: 1; transform: scale(1) translateY(0); }
+        }
       `}</style>
     </div>
   );

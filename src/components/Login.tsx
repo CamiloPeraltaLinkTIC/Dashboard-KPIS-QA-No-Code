@@ -49,7 +49,7 @@ export default function Login() {
     <div className="login-container">
       <div className="login-card glass animate-fade-in">
         <div className="login-header">
-          <h2>Panel de Calidad y Gobernanza</h2>
+          <h2>NoCode<span className="text-gradient">QA</span></h2>
           <p>{isSignUp ? 'Crea una cuenta nueva' : 'Inicia sesión con tu usuario'}</p>
         </div>
 
