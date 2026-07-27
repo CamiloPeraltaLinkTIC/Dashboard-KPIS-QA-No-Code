@@ -81,16 +81,11 @@ export default function AuthTransition({ type, onDone }: AuthTransitionProps) {
           justify-content: center;
           background: var(--bg-app);
           overflow: hidden;
-          animation: overlayIn 0.2s ease-out forwards;
+          opacity: 1;
         }
 
         .auth-transition.exiting {
           animation: overlayOut 0.3s ease-in forwards;
-        }
-
-        @keyframes overlayIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
         }
 
         @keyframes overlayOut {

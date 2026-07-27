@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { User, Session } from '@supabase/supabase-js';
 import Login from './Login';
@@ -39,7 +39,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
   // Detecta transiciones reales de sesión (no el estado inicial al cargar
   // la página) para disparar la animación de acceso/salida correspondiente.
-  useEffect(() => {
+  // useLayoutEffect (no useEffect): debe montar el overlay ANTES de que el
+  // navegador pinte, si no se alcanza a ver el dashboard un instante primero.
+  useLayoutEffect(() => {
     if (loading) return;
 
     if (!hasResolvedOnceRef.current) {
