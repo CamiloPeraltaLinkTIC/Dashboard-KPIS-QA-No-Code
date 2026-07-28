@@ -2,13 +2,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import { 
-  createNewUser, 
-  updateUser, 
-  createProject, 
-  deleteProject, 
-  createAssignment, 
-  deleteAssignment 
+import {
+  createNewUser,
+  updateUser,
+  deleteUser,
+  createProject,
+  deleteProject,
+  createAssignment,
+  deleteAssignment
 } from '@/app/actions/admin';
 
 type QAProfile = {
@@ -266,6 +267,21 @@ export default function AdminPanel() {
     }
   };
 
+  const handleDeleteUser = async (user: ProfileItem) => {
+    if (!confirm(`¿Estás seguro de eliminar al usuario "${user.username}"? Esta acción no se puede deshacer.`)) return;
+    setLoading(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    const result = await deleteUser(user.id, session?.access_token || '');
+    if (result.success) {
+      setMessage({ type: 'success', text: result.message! });
+      if (editingUser?.id === user.id) handleCancelUserEdit();
+      await fetchData();
+    } else {
+      setMessage({ type: 'error', text: result.error! });
+    }
+    setLoading(false);
+  };
+
   const handleDeleteProj = async (id: string) => {
     if (!confirm('¿Estás seguro de eliminar este proyecto? Se perderán las asignaciones relacionadas.')) return;
     setLoading(true);
@@ -486,12 +502,19 @@ export default function AdminPanel() {
                               : <span className="not-applicable">-</span>
                             }
                           </td>
-                          <td>
+                          <td className="actions-cell">
                             <button
                               className="btn-icon-edit"
                               onClick={() => handleEditUserClick(user)}
                             >
                               Editar
+                            </button>
+                            <button
+                              className="btn-icon-delete"
+                              onClick={() => handleDeleteUser(user)}
+                              disabled={loading}
+                            >
+                              Eliminar
                             </button>
                           </td>
                         </tr>
@@ -1070,6 +1093,11 @@ export default function AdminPanel() {
           white-space: nowrap;
         }
 
+        .actions-cell {
+          display: flex;
+          gap: 8px;
+        }
+
         .btn-icon-edit, .btn-icon-delete {
           padding: 6px 12px;
           background: rgba(255, 255, 255, 0.05);
@@ -1080,6 +1108,11 @@ export default function AdminPanel() {
           font-weight: 600;
           cursor: pointer;
           transition: all 0.2s;
+        }
+
+        .btn-icon-delete:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
         }
 
         .btn-icon-edit:hover {

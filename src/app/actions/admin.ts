@@ -53,6 +53,7 @@ export async function createNewUser(formData: FormData) {
   const password = formData.get('password') as string;
   const role = formData.get('role') as string;
   const assignedQaId = formData.get('assignedQaId') as string;
+  const fullName = formData.get('fullName') as string;
 
   if (!username || !password || !role) {
     return { success: false, error: 'Faltan campos requeridos.' };
@@ -85,7 +86,7 @@ export async function createNewUser(formData: FormData) {
     // Give it a brief delay to ensure trigger has executed (usually synchronous in Postgres, but just in case)
     await new Promise(resolve => setTimeout(resolve, 500));
 
-    const updateData: any = { role };
+    const updateData: any = { role, full_name: fullName || null };
     if (role === 'dev' && assignedQaId) {
       updateData.assigned_qa_id = assignedQaId;
     }
@@ -156,6 +157,74 @@ export async function updateUser(formData: FormData) {
     }
 
     return { success: true, message: 'Usuario actualizado exitosamente.' };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Error inesperado del servidor.' };
+  }
+}
+
+export async function deleteUser(userId: string, accessToken: string) {
+  if (!supabaseServiceKey) {
+    return { success: false, error: 'SUPABASE_SERVICE_ROLE_KEY no está configurada.' };
+  }
+
+  const auth = await requireAdmin(accessToken);
+  if ('error' in auth) return { success: false, error: auth.error };
+
+  if (!userId) {
+    return { success: false, error: 'Falta el usuario a eliminar.' };
+  }
+
+  if (userId === auth.userId) {
+    return { success: false, error: 'No puedes eliminar tu propia cuenta.' };
+  }
+
+  try {
+    // No se borra un usuario con historial de auditorías (como dev evaluado o
+    // como QA evaluador): se perdería ese registro sin aviso. Hay que borrar
+    // esas calificaciones primero desde "Historial de Auditorías" si de
+    // verdad se quiere eliminar la cuenta.
+    const { count, error: kpiCheckError } = await supabaseAdmin
+      .from('nocode_kpis')
+      .select('id', { count: 'exact', head: true })
+      .or(`developer_id.eq.${userId},qa_analyst_id.eq.${userId}`);
+
+    if (kpiCheckError) {
+      return { success: false, error: `Error verificando historial: ${kpiCheckError.message}` };
+    }
+    if (count && count > 0) {
+      return { success: false, error: `No se puede eliminar: este usuario tiene ${count} calificación(es) en el historial de auditorías. Elimínalas primero si de verdad quieres borrar la cuenta.` };
+    }
+
+    // Libera a cualquier dev que tuviera a este usuario como QA principal.
+    await supabaseAdmin
+      .from('nocode_profiles')
+      .update({ assigned_qa_id: null })
+      .eq('assigned_qa_id', userId);
+
+    // El perfil referencia a auth.users sin cascada: hay que borrarlo primero.
+    const { error: profileDeleteError } = await supabaseAdmin
+      .from('nocode_profiles')
+      .delete()
+      .eq('id', userId);
+
+    if (profileDeleteError) {
+      return { success: false, error: `Error al eliminar el perfil: ${profileDeleteError.message}` };
+    }
+
+    // Este proyecto de Supabase tiene además una tabla "profiles" (genérica,
+    // de otra app/plantilla que comparte el mismo proyecto) con su propia
+    // foreign key a auth.users. Si queda una fila ahí, el borrado de abajo
+    // falla con "violates foreign key constraint profiles_id_fkey". Se
+    // limpia también, best-effort (no bloquea si la tabla no existe o no
+    // hay fila).
+    await supabaseAdmin.from('profiles').delete().eq('id', userId);
+
+    const { error: authDeleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+    if (authDeleteError) {
+      return { success: false, error: `El perfil se eliminó, pero falló el borrado de la cuenta de acceso: ${authDeleteError.message}` };
+    }
+
+    return { success: true, message: 'Usuario eliminado exitosamente.' };
   } catch (error: any) {
     return { success: false, error: error.message || 'Error inesperado del servidor.' };
   }
