@@ -237,7 +237,7 @@ drop policy if exists "Anyone can view projects." on public.nocode_projects;
 drop policy if exists "Admins can manage projects." on public.nocode_projects;
 
 create policy "Anyone can view projects." on public.nocode_projects
-  for select using (true);
+  for select to authenticated using (true);
 
 create policy "Admins can manage projects." on public.nocode_projects
   for all using ( public.get_auth_user_role() in ('admin', 'Administrator') );
@@ -261,7 +261,7 @@ drop policy if exists "Anyone can view assignments." on public.nocode_project_as
 drop policy if exists "Admins can manage assignments." on public.nocode_project_assignments;
 
 create policy "Anyone can view assignments." on public.nocode_project_assignments
-  for select using (true);
+  for select to authenticated using (true);
 
 create policy "Admins can manage assignments." on public.nocode_project_assignments
   for all using ( public.get_auth_user_role() in ('admin', 'Administrator') );

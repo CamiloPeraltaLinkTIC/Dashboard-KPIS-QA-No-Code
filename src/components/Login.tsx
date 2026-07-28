@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { translateAuthError } from '@/lib/authErrors';
+import { resolveEmail } from '@/lib/email';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -10,35 +11,39 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSignUp, setIsSignUp] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setSuccessMessage(null);
 
     try {
-      // El dominio se mantiene internamente; no se muestra en el front
-      const emailValue = `${username.trim()}@yopmail.com`;
-
-      let authError;
+      // Si el usuario escribe solo un nombre, se usa el dominio interno;
+      // si pega un correo real (con "@"), se respeta tal cual.
+      const emailValue = resolveEmail(username);
 
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email: emailValue,
           password,
         });
-        authError = error;
+        if (error) throw error;
+
+        // Sin confirmación de correo pendiente, signUp() no devuelve error NI
+        // mensaje propio: sin este aviso el botón "se queda ahí" sin dar señal
+        // de que sí pasó algo.
+        if (!data.session) {
+          setSuccessMessage('Cuenta creada. Revisa tu correo para confirmar la cuenta antes de iniciar sesión.');
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email: emailValue,
           password,
         });
-        authError = error;
-      }
-
-      if (authError) {
-        throw authError;
+        if (error) throw error;
       }
     } catch (err: any) {
       setError(translateAuthError(err?.message));
@@ -125,6 +130,7 @@ export default function Login() {
 
         <form onSubmit={handleLogin} className="login-form">
           {error && <div className="error-message">{error}</div>}
+          {successMessage && <div className="success-message">{successMessage}</div>}
 
           <div className="form-group">
             <label htmlFor="username">Usuario</label>
@@ -138,7 +144,7 @@ export default function Login() {
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="ej. fabian.peralta"
+                placeholder="ej. fabian.peralta o tu@correo.com"
                 required
                 autoComplete="username"
               />
@@ -197,7 +203,7 @@ export default function Login() {
             <button
               type="button"
               className="btn-link"
-              onClick={() => setIsSignUp(!isSignUp)}
+              onClick={() => { setIsSignUp(!isSignUp); setError(null); setSuccessMessage(null); }}
             >
               {isSignUp ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}
             </button>
@@ -556,6 +562,16 @@ export default function Login() {
           color: var(--color-danger);
           font-size: 0.85rem;
           border: 1px solid rgba(244, 63, 94, 0.2);
+          text-align: center;
+        }
+
+        .success-message {
+          padding: 12px;
+          border-radius: var(--radius-sm);
+          background: rgba(16, 185, 129, 0.1);
+          color: var(--color-success);
+          font-size: 0.85rem;
+          border: 1px solid rgba(16, 185, 129, 0.2);
           text-align: center;
         }
 

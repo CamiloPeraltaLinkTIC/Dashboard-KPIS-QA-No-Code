@@ -2,6 +2,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { translateAuthError } from '@/lib/authErrors';
+import { resolveEmail } from '@/lib/email';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -57,8 +58,9 @@ export async function createNewUser(formData: FormData) {
     return { success: false, error: 'Faltan campos requeridos.' };
   }
 
-  // El dominio se mantiene internamente; no se muestra en el front
-  const email = `${username.trim()}@yopmail.com`;
+  // Si el username escrito ya es un correo real (tiene "@"), se respeta tal
+  // cual; si no, se usa el dominio interno.
+  const email = resolveEmail(username);
 
   try {
     // 1. Create the user in auth.users
