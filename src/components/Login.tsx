@@ -11,40 +11,22 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [isSignUp, setIsSignUp] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    setSuccessMessage(null);
 
     try {
       // Si el usuario escribe solo un nombre, se usa el dominio interno;
       // si pega un correo real (con "@"), se respeta tal cual.
       const emailValue = resolveEmail(username);
 
-      if (isSignUp) {
-        const { data, error } = await supabase.auth.signUp({
-          email: emailValue,
-          password,
-        });
-        if (error) throw error;
-
-        // Sin confirmación de correo pendiente, signUp() no devuelve error NI
-        // mensaje propio: sin este aviso el botón "se queda ahí" sin dar señal
-        // de que sí pasó algo.
-        if (!data.session) {
-          setSuccessMessage('Cuenta creada. Revisa tu correo para confirmar la cuenta antes de iniciar sesión.');
-        }
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: emailValue,
-          password,
-        });
-        if (error) throw error;
-      }
+      const { error } = await supabase.auth.signInWithPassword({
+        email: emailValue,
+        password,
+      });
+      if (error) throw error;
     } catch (err: any) {
       setError(translateAuthError(err?.message));
     } finally {
@@ -125,12 +107,11 @@ export default function Login() {
 
           <span className="eyebrow">Control de Calidad · No-Code</span>
           <h2>NoCode<span className="text-gradient">QA</span></h2>
-          <p>{isSignUp ? 'Crea una cuenta nueva' : 'Inicia sesión con tu usuario'}</p>
+          <p>Inicia sesión con tu usuario</p>
         </div>
 
         <form onSubmit={handleLogin} className="login-form">
           {error && <div className="error-message">{error}</div>}
-          {successMessage && <div className="success-message">{successMessage}</div>}
 
           <div className="form-group">
             <label htmlFor="username">Usuario</label>
@@ -196,18 +177,8 @@ export default function Login() {
                 <path d="M5 12h14M13 6l6 6-6 6" />
               </svg>
             )}
-            <span>{loading ? (isSignUp ? 'Creando cuenta...' : 'Iniciando sesión...') : (isSignUp ? 'Crear cuenta' : 'Ingresar')}</span>
+            <span>{loading ? 'Iniciando sesión...' : 'Ingresar'}</span>
           </button>
-
-          <div className="toggle-auth">
-            <button
-              type="button"
-              className="btn-link"
-              onClick={() => { setIsSignUp(!isSignUp); setError(null); setSuccessMessage(null); }}
-            >
-              {isSignUp ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}
-            </button>
-          </div>
         </form>
       </div>
 
@@ -414,7 +385,6 @@ export default function Login() {
         .login-form > *:nth-child(2) { animation-delay: 0.42s; }
         .login-form > *:nth-child(3) { animation-delay: 0.49s; }
         .login-form > *:nth-child(4) { animation-delay: 0.56s; }
-        .login-form > *:nth-child(5) { animation-delay: 0.63s; }
 
         .form-group {
           display: flex;
@@ -535,26 +505,6 @@ export default function Login() {
           animation: spin 0.7s linear infinite;
         }
 
-        .toggle-auth {
-          text-align: center;
-          margin-top: 12px;
-        }
-
-        .btn-link {
-          background: none;
-          border: none;
-          color: var(--text-secondary);
-          font-size: 0.85rem;
-          cursor: pointer;
-          transition: color 0.2s;
-          padding: 5px;
-        }
-
-        .btn-link:hover {
-          color: var(--color-primary);
-          text-decoration: underline;
-        }
-
         .error-message {
           padding: 12px;
           border-radius: var(--radius-sm);
@@ -562,16 +512,6 @@ export default function Login() {
           color: var(--color-danger);
           font-size: 0.85rem;
           border: 1px solid rgba(244, 63, 94, 0.2);
-          text-align: center;
-        }
-
-        .success-message {
-          padding: 12px;
-          border-radius: var(--radius-sm);
-          background: rgba(16, 185, 129, 0.1);
-          color: var(--color-success);
-          font-size: 0.85rem;
-          border: 1px solid rgba(16, 185, 129, 0.2);
           text-align: center;
         }
 
