@@ -408,13 +408,15 @@ export default function DashboardHome() {
   }, [developers, selectedDeveloper, selectedDeveloperData]);
 
   const heroBreakdown = useMemo(() => {
-    // Si una revisión ya fue reabierta (tiene un reintento posterior), su
-    // estado quedó obsoleto: Aprobadas/En Revisión/Rechazadas reflejan el
-    // estado vigente (el del reintento más reciente, no el de la revisión
-    // original ya corregida). El total, en cambio, sí cuenta cada evaluación
-    // realizada (incluidas las reabiertas), porque representa el trabajo
-    // real de QA, no el estado actual de cada tarea.
-    const current = filteredReviews.filter((r) => !r.retestedBy);
+    // Una revisión "En Revisión" o "Rechazada" que ya fue reabierta y resuelta
+    // con un reintento no debe seguir contando como pendiente para siempre.
+    // Pero una revisión "Aprobada" sí sigue contando como aprobada aunque
+    // después se haya reabierto otra vez (por ejemplo, para un ajuste
+    // adicional) — aprobar es un resultado válido que no queda "obsoleto".
+    // El total, en cambio, cuenta cada evaluación realizada (incluidas las
+    // reabiertas), porque representa el trabajo real de QA, no el estado
+    // actual de cada tarea.
+    const current = filteredReviews.filter((r) => r.status === 'approved' || !r.retestedBy);
     const approved = current.filter((r) => r.status === 'approved').length;
     const inReview = current.filter((r) => r.status === 'in_review').length;
     const rejected = current.filter((r) => r.status === 'rejected').length;
