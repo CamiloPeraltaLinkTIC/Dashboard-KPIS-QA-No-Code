@@ -11,6 +11,7 @@ type Profile = {
   role: 'QA' | 'dev' | 'leader' | 'admin' | 'Administrator' | string;
   username: string;
   full_name?: string;
+  avatar_url?: string;
 };
 
 type AuthContextType = {
@@ -18,6 +19,7 @@ type AuthContextType = {
   profile: Profile | null;
   loading: boolean;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType>({
@@ -25,6 +27,7 @@ const AuthContext = createContext<AuthContextType>({
   profile: null,
   loading: true,
   signOut: async () => {},
+  refreshProfile: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -141,6 +144,12 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     await supabase.auth.signOut();
   };
 
+  const refreshProfile = async () => {
+    if (user) {
+      await fetchProfile(user.id, user);
+    }
+  };
+
   return (
     <>
       {loading ? (
@@ -153,7 +162,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         <Login />
       ) : (
         // Logged in
-        <AuthContext.Provider value={{ user, profile, loading, signOut }}>
+        <AuthContext.Provider value={{ user, profile, loading, signOut, refreshProfile }}>
           {children}
         </AuthContext.Provider>
       )}

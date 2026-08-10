@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import ExcelJS from 'exceljs';
 import { supabase } from '@/lib/supabase/client';
 import {
   createNewUser,
@@ -9,8 +10,40 @@ import {
   createProject,
   deleteProject,
   createAssignment,
-  deleteAssignment
+  deleteAssignment,
+  bulkCreateUsers
 } from '@/app/actions/admin';
+
+const ALLOWED_ROLES = ['dev', 'QA', 'leader', 'admin'];
+
+// Normaliza variantes comunes en español/mayúsculas al valor exacto que espera la BD.
+function normalizeRole(raw: string): string {
+  const lower = raw.trim().toLowerCase();
+  if (lower === 'dev' || lower === 'desarrollador') return 'dev';
+  if (lower === 'qa' || lower === 'analista qa') return 'QA';
+  if (lower === 'leader' || lower === 'líder' || lower === 'lider') return 'leader';
+  if (lower === 'admin' || lower === 'administrador') return 'admin';
+  return raw.trim();
+}
+
+type BulkRowPreview = {
+  username: string;
+  fullName: string;
+  password: string;
+  role: string;
+  assignedQaUsername: string;
+  valid: boolean;
+  error?: string;
+};
+
+type BulkResult = {
+  row: number;
+  username: string;
+  success: boolean;
+  message?: string;
+  error?: string;
+  generatedPassword?: string;
+};
 
 type QAProfile = {
   id: string;
@@ -76,6 +109,13 @@ export default function AdminPanel() {
     qaId: '',
     projectId: ''
   });
+
+  // Carga masiva de usuarios por Excel
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
+  const [bulkRows, setBulkRows] = useState<BulkRowPreview[]>([]);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+  const [bulkResults, setBulkResults] = useState<BulkResult[] | null>(null);
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   const fetchData = async () => {
     // 1. Fetch QAs
@@ -310,8 +350,148 @@ export default function AdminPanel() {
     setLoading(false);
   };
 
+  const resetBulkState = () => {
+    setBulkRows([]);
+    setBulkError(null);
+    setBulkResults(null);
+  };
+
+  const handleOpenBulkModal = () => {
+    resetBulkState();
+    setBulkModalOpen(true);
+  };
+
+  const handleDownloadTemplate = async () => {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Usuarios');
+    sheet.columns = [
+      { header: 'username', key: 'username', width: 22 },
+      { header: 'fullName', key: 'fullName', width: 26 },
+      { header: 'password', key: 'password', width: 18 },
+      { header: 'role', key: 'role', width: 14 },
+      { header: 'assignedQaUsername', key: 'assignedQaUsername', width: 22 }
+    ];
+    sheet.addRow({
+      username: 'juan.perez',
+      fullName: 'Juan Pérez',
+      password: '',
+      role: 'dev',
+      assignedQaUsername: qas[0]?.username || ''
+    });
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'plantilla_usuarios.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleBulkFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    setBulkResults(null);
+    setBulkError(null);
+
+    try {
+      const buffer = await file.arrayBuffer();
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(buffer);
+      const sheet = workbook.worksheets[0];
+      if (!sheet) {
+        setBulkError('El archivo no tiene hojas de cálculo.');
+        return;
+      }
+
+      const headers: string[] = [];
+      sheet.getRow(1).eachCell({ includeEmpty: false }, (cell, colNumber) => {
+        headers[colNumber] = String(cell.value ?? '').trim().toLowerCase();
+      });
+
+      const getCellText = (row: ExcelJS.Row, headerName: string): string => {
+        const colNumber = headers.indexOf(headerName);
+        if (colNumber === -1) return '';
+        const value = row.getCell(colNumber).value;
+        return value == null ? '' : String(value).trim();
+      };
+
+      const parsedRows: BulkRowPreview[] = [];
+      sheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return;
+
+        const username = getCellText(row, 'username');
+        const fullName = getCellText(row, 'fullname');
+        const password = getCellText(row, 'password') || getCellText(row, 'contraseña');
+        const roleRaw = getCellText(row, 'role') || getCellText(row, 'rol');
+        const assignedQaUsername = getCellText(row, 'assignedqausername') || getCellText(row, 'qa');
+
+        if (!username && !roleRaw) return; // fila vacía
+
+        const role = normalizeRole(roleRaw);
+        const valid = !!username && ALLOWED_ROLES.includes(role);
+
+        parsedRows.push({
+          username,
+          fullName,
+          password,
+          role,
+          assignedQaUsername,
+          valid,
+          error: !username ? 'Falta el nombre de usuario.' : !ALLOWED_ROLES.includes(role) ? `Rol inválido: "${roleRaw}"` : undefined
+        });
+      });
+
+      if (parsedRows.length === 0) {
+        setBulkError('No se encontraron filas con datos en el archivo.');
+        return;
+      }
+
+      setBulkRows(parsedRows);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'formato inválido.';
+      setBulkError('No se pudo leer el archivo: ' + message);
+    }
+  };
+
+  const handleConfirmBulkUpload = async () => {
+    const validRows = bulkRows.filter(r => r.valid);
+    if (validRows.length === 0) return;
+
+    setBulkLoading(true);
+    setBulkError(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const result = await bulkCreateUsers(
+        validRows.map(r => ({
+          username: r.username,
+          fullName: r.fullName,
+          password: r.password,
+          role: r.role,
+          assignedQaUsername: r.assignedQaUsername
+        })),
+        session?.access_token || ''
+      );
+
+      if (result.success) {
+        setBulkResults(result.results || []);
+        await fetchData();
+      } else {
+        setBulkError(result.error || 'Error al procesar la carga masiva.');
+      }
+    } catch (err) {
+      setBulkError('Error inesperado: ' + (err instanceof Error ? err.message : ''));
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
   // Filter lists based on search
-  const filteredProfiles = profiles.filter(p => 
+  const filteredProfiles = profiles.filter(p =>
     p.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (p.full_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.role.toLowerCase().includes(searchTerm.toLowerCase())
@@ -462,13 +642,18 @@ export default function AdminPanel() {
             <div className="list-card animate-fade-in">
               <div className="card-header-row">
                 <h3>Usuarios Registrados ({profiles.length})</h3>
-                <input
-                  type="text"
-                  placeholder="Buscar usuario..."
-                  className="search-input"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
+                <div className="card-header-actions">
+                  <button type="button" className="btn-bulk-upload" onClick={handleOpenBulkModal}>
+                    Carga masiva (Excel)
+                  </button>
+                  <input
+                    type="text"
+                    placeholder="Buscar usuario..."
+                    className="search-input"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
               </div>
 
               <div className="table-wrapper">
@@ -525,6 +710,120 @@ export default function AdminPanel() {
               </div>
             </div>
           </>
+        )}
+
+        {/* ==================== BULK UPLOAD MODAL ==================== */}
+        {bulkModalOpen && (
+          <div className="bulk-overlay" onClick={() => !bulkLoading && setBulkModalOpen(false)}>
+            <div className="bulk-card glass" onClick={(e) => e.stopPropagation()}>
+              <div className="bulk-header">
+                <h3>Carga masiva de usuarios</h3>
+                <button type="button" className="bulk-close-btn" onClick={() => setBulkModalOpen(false)} aria-label="Cerrar">
+                  ✕
+                </button>
+              </div>
+
+              <p className="bulk-desc">
+                Sube un archivo Excel (.xlsx) con las columnas <code>username, fullName, password, role, assignedQaUsername</code>.
+                La contraseña es opcional: si se deja en blanco, se genera una temporal.
+              </p>
+
+              <div className="bulk-actions-row">
+                <button type="button" className="btn-secondary" onClick={handleDownloadTemplate}>
+                  Descargar plantilla
+                </button>
+                <label className="btn-primary bulk-file-label">
+                  {bulkRows.length > 0 ? 'Cambiar archivo' : 'Seleccionar archivo'}
+                  <input type="file" accept=".xlsx,.xls" onChange={handleBulkFileSelect} hidden />
+                </label>
+              </div>
+
+              {bulkError && <div className="message-alert error">{bulkError}</div>}
+
+              {bulkRows.length > 0 && !bulkResults && (
+                <>
+                  <div className="table-wrapper bulk-preview-wrapper">
+                    <table className="users-table">
+                      <thead>
+                        <tr>
+                          <th>#</th>
+                          <th>Usuario</th>
+                          <th>Nombre</th>
+                          <th>Rol</th>
+                          <th>QA</th>
+                          <th>Estado</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {bulkRows.map((r, i) => (
+                          <tr key={i} className={!r.valid ? 'row-invalid' : ''}>
+                            <td>{i + 1}</td>
+                            <td>{r.username || <em className="text-muted">—</em>}</td>
+                            <td>{r.fullName || <em className="text-muted">—</em>}</td>
+                            <td>{r.role}</td>
+                            <td>{r.assignedQaUsername || '-'}</td>
+                            <td>
+                              {r.valid
+                                ? <span className="badge badge-success">OK</span>
+                                : <span className="badge badge-danger">{r.error}</span>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="bulk-summary">
+                    {bulkRows.filter(r => r.valid).length} de {bulkRows.length} filas listas para crear.
+                  </div>
+
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={handleConfirmBulkUpload}
+                    disabled={bulkLoading || bulkRows.every(r => !r.valid)}
+                  >
+                    {bulkLoading ? 'Creando usuarios...' : `Confirmar carga (${bulkRows.filter(r => r.valid).length})`}
+                  </button>
+                </>
+              )}
+
+              {bulkResults && (
+                <>
+                  <div className="table-wrapper bulk-preview-wrapper">
+                    <table className="users-table">
+                      <thead>
+                        <tr>
+                          <th>#</th>
+                          <th>Usuario</th>
+                          <th>Resultado</th>
+                          <th>Contraseña generada</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {bulkResults.map((r) => (
+                          <tr key={r.row} className={!r.success ? 'row-invalid' : ''}>
+                            <td>{r.row}</td>
+                            <td>{r.username}</td>
+                            <td>
+                              {r.success
+                                ? <span className="badge badge-success">Creado</span>
+                                : <span className="badge badge-danger">{r.error}</span>}
+                            </td>
+                            <td>{r.generatedPassword || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <button type="button" className="btn-secondary" onClick={() => { setBulkModalOpen(false); resetBulkState(); }}>
+                    Cerrar
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
         )}
 
         {/* ==================== TAB 2: PROJECTS ==================== */}
@@ -1160,6 +1459,133 @@ export default function AdminPanel() {
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(10px); }
           to { opacity: 1; transform: translateY(0); }
+        }
+
+        .card-header-actions {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+
+        .btn-bulk-upload {
+          padding: 8px 14px;
+          border-radius: var(--radius-sm);
+          border: 1px solid var(--border-color);
+          background: rgba(255, 255, 255, 0.05);
+          color: var(--text-primary);
+          font-size: 0.82rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          white-space: nowrap;
+        }
+
+        .btn-bulk-upload:hover {
+          border-color: var(--color-primary);
+          color: var(--color-primary);
+          background: var(--color-primary-glow);
+        }
+
+        .bulk-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.55);
+          backdrop-filter: blur(4px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+          padding: 20px;
+        }
+
+        .bulk-card {
+          width: 100%;
+          max-width: 720px;
+          max-height: 85vh;
+          overflow-y: auto;
+          padding: 28px;
+          border-radius: var(--radius-md);
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+        }
+
+        .bulk-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+
+        .bulk-header h3 {
+          font-size: 1.15rem;
+          color: var(--text-primary);
+        }
+
+        .bulk-close-btn {
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
+          border: 1px solid var(--border-color);
+          background: rgba(255, 255, 255, 0.05);
+          color: var(--text-secondary);
+          cursor: pointer;
+          font-size: 0.75rem;
+          flex-shrink: 0;
+        }
+
+        .bulk-close-btn:hover {
+          background: var(--color-danger);
+          border-color: var(--color-danger);
+          color: white;
+        }
+
+        .bulk-desc {
+          font-size: 0.85rem;
+          color: var(--text-secondary);
+          line-height: 1.5;
+        }
+
+        .bulk-desc code {
+          font-family: var(--font-mono);
+          font-size: 0.78rem;
+          background: rgba(255, 255, 255, 0.06);
+          padding: 1px 5px;
+          border-radius: 4px;
+        }
+
+        .bulk-actions-row {
+          display: flex;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+
+        .bulk-actions-row .btn-primary,
+        .bulk-actions-row .btn-secondary {
+          flex: none;
+          padding: 10px 18px;
+        }
+
+        .bulk-file-label {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+        }
+
+        .bulk-preview-wrapper {
+          max-height: 320px;
+          overflow-y: auto;
+        }
+
+        .bulk-summary {
+          font-size: 0.85rem;
+          color: var(--text-secondary);
+        }
+
+        .row-invalid {
+          background: rgba(244, 63, 94, 0.05);
         }
       `}</style>
     </div>

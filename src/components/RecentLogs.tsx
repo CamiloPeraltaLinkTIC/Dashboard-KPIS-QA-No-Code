@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DeveloperReview } from '../data/mockData';
 import { formatDateTime } from '@/lib/format';
 import { useAuth } from '@/components/AuthProvider';
@@ -10,18 +10,39 @@ interface LogEntry extends DeveloperReview {
   developerId: string;
 }
 
+interface JumpTarget {
+  id: string;
+  nonce: number;
+}
+
 interface RecentLogsProps {
   logs: LogEntry[];
   onDeleteReview?: (reviewId: string, developerId: string) => void | Promise<void>;
+  onReopenReview?: (log: LogEntry) => void;
+  jumpTarget?: JumpTarget | null;
 }
 
-export default function RecentLogs({ logs, onDeleteReview }: RecentLogsProps) {
+export default function RecentLogs({ logs, onDeleteReview, onReopenReview, jumpTarget }: RecentLogsProps) {
   const { profile } = useAuth();
   const isAdmin = profile?.role === 'admin' || profile?.role === 'Administrator';
+  const canReopen = isAdmin || profile?.role === 'QA';
   const [filterStatus, setFilterStatus] = useState<string>('All');
+  const [codeFilter, setCodeFilter] = useState('');
   const [selectedLogId, setSelectedLogId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<LogEntry | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Al llegar desde "Observaciones Recientes": limpia cualquier filtro que
+  // pudiera esconder la fila buscada, la expande, y hace scroll hasta ella.
+  useEffect(() => {
+    if (!jumpTarget) return;
+    setFilterStatus('All');
+    setCodeFilter('');
+    setSelectedLogId(jumpTarget.id);
+    requestAnimationFrame(() => {
+      document.getElementById(`log-row-${jumpTarget.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }, [jumpTarget]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -50,8 +71,9 @@ export default function RecentLogs({ logs, onDeleteReview }: RecentLogsProps) {
   };
 
   const filteredLogs = logs.filter((log) => {
-    if (filterStatus === 'All') return true;
-    return log.status === filterStatus;
+    if (filterStatus !== 'All' && log.status !== filterStatus) return false;
+    if (codeFilter.trim() && !(log.reviewCode || log.id).toLowerCase().includes(codeFilter.trim().toLowerCase())) return false;
+    return true;
   });
 
   const confirmDelete = async () => {
@@ -137,19 +159,29 @@ export default function RecentLogs({ logs, onDeleteReview }: RecentLogsProps) {
           <p>Registro ordenado de revisiones individuales por tarea de desarrollo</p>
         </div>
 
-        {/* Filter buttons */}
-        <div className="status-filters">
-          {['All', 'approved', 'rejected', 'in_review'].map((status) => (
-            <button
-              key={status}
-              onClick={() => setFilterStatus(status)}
-              className={`filter-btn ${filterStatus === status ? 'active' : ''}`}
-            >
-              {status === 'All' ? 'Todos' : 
-               status === 'approved' ? 'Aprobados' : 
-               status === 'rejected' ? 'Rechazados' : 'En Revisión'}
-            </button>
-          ))}
+        <div className="logs-filters-group">
+          <input
+            type="text"
+            className="code-filter-input"
+            placeholder="Buscar por ID Review (REV-2026-001)..."
+            value={codeFilter}
+            onChange={(e) => setCodeFilter(e.target.value)}
+          />
+
+          {/* Filter buttons */}
+          <div className="status-filters">
+            {['All', 'approved', 'rejected', 'in_review'].map((status) => (
+              <button
+                key={status}
+                onClick={() => setFilterStatus(status)}
+                className={`filter-btn ${filterStatus === status ? 'active' : ''}`}
+              >
+                {status === 'All' ? 'Todos' :
+                 status === 'approved' ? 'Aprobados' :
+                 status === 'rejected' ? 'Rechazados' : 'En Revisión'}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -173,10 +205,11 @@ export default function RecentLogs({ logs, onDeleteReview }: RecentLogsProps) {
               return (
                 <React.Fragment key={log.id}>
                   <tr
+                    id={`log-row-${log.id}`}
                     className={isOpen ? 'row-selected' : ''}
                     style={{ boxShadow: `inset 3px 0 0 ${getStatusAccent(log.status)}` }}
                   >
-                    <td className="log-id-cell">{log.id}</td>
+                    <td className="log-id-cell">{log.reviewCode || log.id}</td>
                     <td>
                       <strong className="dev-name-cell">{log.developerName}</strong>
                     </td>
@@ -211,10 +244,28 @@ export default function RecentLogs({ logs, onDeleteReview }: RecentLogsProps) {
                         <div className="detail-panel" style={{ borderLeftColor: getStatusAccent(log.status) }}>
                           <div className="detail-panel-header">
                             <div className="detail-title-group">
-                              <span className="detail-id">{log.id}</span>
+                              <span className="detail-id">{log.reviewCode || log.id}</span>
                               {getStatusBadge(log.status)}
                             </div>
                             <div className="detail-header-actions">
+                              {canReopen && onReopenReview && (() => {
+                                const alreadyReopened = !!log.retestedBy;
+                                return (
+                                  <button
+                                    className="reopen-detail-btn"
+                                    onClick={() => !alreadyReopened && onReopenReview(log)}
+                                    disabled={alreadyReopened}
+                                    aria-label="Reabrir calificación"
+                                    title={alreadyReopened ? 'Ya tiene un reintento — reabre el reintento más reciente en su lugar.' : 'Reabrir y calificar un reintento'}
+                                  >
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                                      <path d="M3 3v5h5" />
+                                    </svg>
+                                    Reabrir
+                                  </button>
+                                );
+                              })()}
                               {isAdmin && onDeleteReview && (
                                 <button
                                   className="delete-detail-btn"
@@ -239,6 +290,32 @@ export default function RecentLogs({ logs, onDeleteReview }: RecentLogsProps) {
 
                           <h4 className="detail-task-title">{log.taskName} <span className="detail-task-dev">— {log.developerName}</span></h4>
                           <p className="detail-desc">{log.details}</p>
+
+                          {(log.retestOf || log.retestedBy) && (
+                            <div className="traceability-box">
+                              <span className="traceability-icon">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                                  <path d="M3 3v5h5" />
+                                </svg>
+                              </span>
+                              <span>
+                                {log.retestOf && (
+                                  <>
+                                    Este es un <strong>reintento</strong> de <strong>{log.retestOf.reviewCode || log.retestOf.id}</strong>
+                                    {' '}(puntaje original: <strong>{log.retestOf.score}/100</strong>, {formatDateTime(log.retestOf.date)}).
+                                  </>
+                                )}
+                                {log.retestOf && log.retestedBy && <br />}
+                                {log.retestedBy && (
+                                  <>
+                                    Esta calificación fue <strong>reabierta</strong>. Reintento: <strong>{log.retestedBy.reviewCode || log.retestedBy.id}</strong>
+                                    {' '}con puntaje <strong>{log.retestedBy.score}/100</strong> ({formatDateTime(log.retestedBy.date)}).
+                                  </>
+                                )}
+                              </span>
+                            </div>
+                          )}
 
                           <div className="detail-kpi-row">
                             {kpiChips(log).map((chip) => (
@@ -336,6 +413,34 @@ export default function RecentLogs({ logs, onDeleteReview }: RecentLogsProps) {
         .title-group p {
           font-size: 0.78rem;
           color: var(--text-secondary);
+        }
+
+        .logs-filters-group {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+
+        .code-filter-input {
+          padding: 9px 14px;
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid var(--border-color);
+          border-radius: var(--radius-sm);
+          color: var(--text-primary);
+          font-size: 0.8rem;
+          width: 230px;
+          transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        [data-theme="light"] .code-filter-input {
+          background: rgba(0, 0, 0, 0.02);
+        }
+
+        .code-filter-input:focus {
+          outline: none;
+          border-color: var(--color-primary);
+          box-shadow: 0 0 0 3px var(--color-primary-glow);
         }
 
         .status-filters {
@@ -591,6 +696,58 @@ export default function RecentLogs({ logs, onDeleteReview }: RecentLogsProps) {
           background: var(--color-danger);
           border-color: var(--color-danger);
           color: white;
+        }
+
+        .reopen-detail-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          height: 26px;
+          padding: 0 10px;
+          border-radius: 999px;
+          border: 1px solid var(--color-primary);
+          background: var(--color-primary-glow);
+          color: var(--color-primary);
+          font-size: 0.72rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .reopen-detail-btn:disabled {
+          border-color: var(--border-color);
+          background: transparent;
+          color: var(--text-muted);
+          cursor: not-allowed;
+          opacity: 0.7;
+        }
+
+        .reopen-detail-btn:hover:not(:disabled) {
+          background: var(--color-primary);
+          color: white;
+        }
+
+        .traceability-box {
+          display: flex;
+          align-items: flex-start;
+          gap: 8px;
+          padding: 10px 14px;
+          border-radius: var(--radius-sm);
+          border: 1px solid var(--color-primary);
+          background: var(--color-primary-glow);
+          color: var(--text-secondary);
+          font-size: 0.8rem;
+          line-height: 1.5;
+        }
+
+        .traceability-box strong {
+          color: var(--text-primary);
+        }
+
+        .traceability-icon {
+          color: var(--color-primary);
+          flex-shrink: 0;
+          margin-top: 2px;
         }
 
         .close-detail-btn {

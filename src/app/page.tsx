@@ -7,6 +7,7 @@ import MetricCard from '@/components/MetricCard';
 import { BugCategoriesDonut } from '@/components/Charts';
 import DeveloperSkillsBreakdown from '@/components/DeveloperSkillsBreakdown';
 import RecentLogs from '@/components/RecentLogs';
+import RecentObservations from '@/components/RecentObservations';
 import InteractiveValidator from '@/components/InteractiveValidator';
 import ScoreHero from '@/components/ScoreHero';
 import DeveloperLeaderboard from '@/components/DeveloperLeaderboard';
@@ -25,7 +26,14 @@ export default function DashboardHome() {
   const { profile } = useAuth();
   const [currentTab, setCurrentTab] = useState('overview');
   const [selectedDeveloper, setSelectedDeveloper] = useState('All');
-  
+  const [reopenContext, setReopenContext] = useState<{ parentReviewId: string; parentReviewCode?: string; taskName: string; devId: string; projectId?: string; parentRetrabajo: number } | null>(null);
+  const [logJumpTarget, setLogJumpTarget] = useState<{ id: string; nonce: number } | null>(null);
+
+  // Desde "Observaciones Recientes": salta al Historial de abajo, con esa fila expandida.
+  const handleSelectObservation = (reviewId: string) => {
+    setLogJumpTarget({ id: reviewId, nonce: Date.now() });
+  };
+
   const [developers, setDevelopers] = useState<DeveloperStat[]>([]);
   const [allProjects, setAllProjects] = useState<{ id: string; name: string }[]>([]);
   const [projectAssignments, setProjectAssignments] = useState<{ developer_id: string; project_id: string }[]>([]);
@@ -83,6 +91,9 @@ export default function DashboardHome() {
           
           const reviews: DeveloperReview[] = devKpis.map(k => ({
             id: k.id,
+            reviewCode: k.review_code || undefined,
+            parentReviewId: k.parent_review_id || undefined,
+            projectId: k.project_id || undefined,
             taskName: k.task_name,
             date: k.created_at, // timestamp completo (fecha y hora)
             score: k.score || 0,
@@ -100,7 +111,8 @@ export default function DashboardHome() {
           }));
 
           const totalTasks = reviews.length;
-          const approvedFirstTry = reviews.filter(r => r.status === 'approved').length;
+          // No cuenta como "primer intento" si viene de un reintento (reabrir historial).
+          const approvedFirstTry = reviews.filter(r => r.status === 'approved' && !r.parentReviewId).length;
           const complianceRate = totalTasks > 0 ? Math.round(reviews.reduce((sum, r) => sum + r.score, 0) / totalTasks) : 100;
           
           const kpisTotal = {
@@ -108,7 +120,10 @@ export default function DashboardHome() {
             cumplimientoDod: totalTasks > 0 ? Math.round(reviews.reduce((sum, r) => sum + r.kpis.cumplimientoDod, 0) / totalTasks) : 100,
             calidadVisual: totalTasks > 0 ? Math.round(reviews.reduce((sum, r) => sum + r.kpis.calidadVisual, 0) / totalTasks) : 100,
             erroresVisuales: reviews.reduce((sum, r) => sum + r.kpis.erroresVisuales, 0),
-            retrabajo: reviews.reduce((sum, r) => sum + r.kpis.retrabajo, 0),
+            // El total no suma el valor de retrabajo de cada fila (que escala
+            // con la profundidad de la cadena: 1, 2, 3...), sino que cuenta
+            // cuántas veces se reabrió algo (cuántas filas tienen parentReviewId).
+            retrabajo: reviews.filter((r) => !!r.parentReviewId).length,
           };
 
           // Competencias derivadas de los KPIs reales (antes eran valores fijos)
@@ -127,6 +142,7 @@ export default function DashboardHome() {
             name: devRow.full_name || devRow.username || 'Desconocido',
             role: 'Desarrollador No-Code',
             avatar: (devRow.username || 'D').substring(0, 2).toUpperCase(),
+            avatarUrl: devRow.avatar_url || undefined,
             approvedFirstTry,
             totalTasks,
             complianceRate,
@@ -173,7 +189,8 @@ export default function DashboardHome() {
   // local sin esperar al próximo refresco automático).
   const computeDevAggregates = (reviews: DeveloperReview[]) => {
     const totalTasks = reviews.length;
-    const approvedFirstTry = reviews.filter((r) => r.status === 'approved').length;
+    // No cuenta como "primer intento" si viene de un reintento (reabrir historial).
+    const approvedFirstTry = reviews.filter((r) => r.status === 'approved' && !r.parentReviewId).length;
     const complianceRate = totalTasks > 0 ? Math.round(reviews.reduce((sum, r) => sum + r.score, 0) / totalTasks) : 100;
 
     const kpisTotal = {
@@ -181,13 +198,14 @@ export default function DashboardHome() {
       cumplimientoDod: totalTasks > 0 ? Math.round(reviews.reduce((sum, r) => sum + r.kpis.cumplimientoDod, 0) / totalTasks) : 100,
       calidadVisual: totalTasks > 0 ? Math.round(reviews.reduce((sum, r) => sum + r.kpis.calidadVisual, 0) / totalTasks) : 100,
       erroresVisuales: reviews.reduce((sum, r) => sum + r.kpis.erroresVisuales, 0),
-      retrabajo: reviews.reduce((sum, r) => sum + r.kpis.retrabajo, 0),
+      // Cuenta reaperturas, no la suma de valores de retrabajo (ver comentario en el fetch inicial).
+      retrabajo: reviews.filter((r) => !!r.parentReviewId).length,
     };
 
     return { totalTasks, approvedFirstTry, complianceRate, kpisTotal };
   };
 
-  const handleAddReview = async (devId: string, projectId: string, newReview: DeveloperReview) => {
+  const handleAddReview = async (devId: string, projectId: string, newReview: DeveloperReview, parentReviewId?: string) => {
     // Attempt to save to Supabase
     if (profile?.id) {
       try {
@@ -207,9 +225,10 @@ export default function DashboardHome() {
           errores_visuales: newReview.kpis.erroresVisuales,
           retrabajo: newReview.kpis.retrabajo,
           details: newReview.details,
-          month: new Date().toISOString().substring(0, 7)
-        }]).select('id, created_at').single();
-        
+          month: new Date().toISOString().substring(0, 7),
+          parent_review_id: parentReviewId || null
+        }]).select('id, created_at, review_code').single();
+
         if (error) {
           console.error('Error saving to Supabase:', error);
           alert('Error al guardar: ' + error.message);
@@ -219,7 +238,9 @@ export default function DashboardHome() {
         // Update local state smoothly
         newReview.id = data.id;
         newReview.date = data.created_at; // timestamp completo (fecha y hora)
-        
+        newReview.reviewCode = data.review_code || undefined;
+        newReview.parentReviewId = parentReviewId;
+
         setDevelopers((prevDevs) => {
           return prevDevs.map((dev) => {
             if (dev.id === devId) {
@@ -256,6 +277,23 @@ export default function DashboardHome() {
     );
   };
 
+  // Reabre una revisión: navega a "Calificar Desarrollador" pre-cargado y
+  // vinculado a la revisión original vía parentReviewId (ambos puntajes
+  // quedan visibles para trazabilidad, ninguno reemplaza al otro).
+  const handleReopenReview = (log: DeveloperReview & { developerId: string }) => {
+    setReopenContext({
+      parentReviewId: log.id,
+      parentReviewCode: log.reviewCode,
+      taskName: log.taskName,
+      devId: log.developerId,
+      projectId: log.projectId,
+      // El retrabajo del reintento = retrabajo de la revisión que se reabre + 1,
+      // así se refleja cuántas veces se ha reabierto esta misma cadena.
+      parentRetrabajo: log.kpis.retrabajo
+    });
+    setCurrentTab('validator');
+  };
+
   // Flatten reviews to display in the historical logs list
   const allReviews = useMemo(() => {
     const list: (DeveloperReview & { developerName: string; developerId: string })[] = [];
@@ -269,7 +307,24 @@ export default function DashboardHome() {
       });
     });
     // Sort chronologically (date desc)
-    return list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    // Vincula cada revisión con su reintento/original (reabrir historial) para
+    // mostrar ambos puntajes juntos en el detalle, sin afectar los agregados.
+    // Van en dos campos separados (retestOf / retestedBy) porque una revisión
+    // "de en medio" de la cadena puede ser ambas cosas a la vez.
+    const byId = new Map(list.map((r) => [r.id, r]));
+    list.forEach((r) => {
+      if (r.parentReviewId) {
+        const parent = byId.get(r.parentReviewId);
+        if (parent) {
+          r.retestOf = { id: parent.id, reviewCode: parent.reviewCode, score: parent.score, date: parent.date };
+          parent.retestedBy = { id: r.id, reviewCode: r.reviewCode, score: r.score, date: r.date };
+        }
+      }
+    });
+
+    return list;
   }, [developers]);
 
   // Filter reviews by selected developer name
@@ -353,9 +408,16 @@ export default function DashboardHome() {
   }, [developers, selectedDeveloper, selectedDeveloperData]);
 
   const heroBreakdown = useMemo(() => {
-    const approved = filteredReviews.filter((r) => r.status === 'approved').length;
-    const inReview = filteredReviews.filter((r) => r.status === 'in_review').length;
-    const rejected = filteredReviews.filter((r) => r.status === 'rejected').length;
+    // Si una revisión ya fue reabierta (tiene un reintento posterior), su
+    // estado quedó obsoleto: Aprobadas/En Revisión/Rechazadas reflejan el
+    // estado vigente (el del reintento más reciente, no el de la revisión
+    // original ya corregida). El total, en cambio, sí cuenta cada evaluación
+    // realizada (incluidas las reabiertas), porque representa el trabajo
+    // real de QA, no el estado actual de cada tarea.
+    const current = filteredReviews.filter((r) => !r.retestedBy);
+    const approved = current.filter((r) => r.status === 'approved').length;
+    const inReview = current.filter((r) => r.status === 'in_review').length;
+    const rejected = current.filter((r) => r.status === 'rejected').length;
     return { approved, inReview, rejected, total: filteredReviews.length };
   }, [filteredReviews]);
 
@@ -401,7 +463,6 @@ export default function DashboardHome() {
           selectedDeveloper={selectedDeveloper}
           setSelectedDeveloper={setSelectedDeveloper}
           developers={developersDropdown}
-          recentReviews={allReviews.slice(0, 6)}
         />
 
         <div className="tab-viewport">
@@ -418,7 +479,7 @@ export default function DashboardHome() {
                 <MetricCard
                   delayMs={150}
                   title="Píxel Perfecto"
-                  value={`${stats.kpisTotal.pixelPerfect}%`}
+                  value={`${stats.kpisTotal.pixelPerfect}/100%`}
                   subtext="Fidelidad respecto al diseño"
                   trend={selectedDeveloper === 'All' ? "Promedio equipo" : "Individual"}
                   trendType="positive"
@@ -435,7 +496,7 @@ export default function DashboardHome() {
                 <MetricCard
                   delayMs={210}
                   title="Cumplimiento de DoD"
-                  value={`${stats.kpisTotal.cumplimientoDod}%`}
+                  value={`${stats.kpisTotal.cumplimientoDod}/100%`}
                   subtext="Definición de Terminado"
                   trend={selectedDeveloper === 'All' ? "Promedio equipo" : "Individual"}
                   trendType="positive"
@@ -452,7 +513,7 @@ export default function DashboardHome() {
                 <MetricCard
                   delayMs={270}
                   title="Calidad Visual"
-                  value={`${stats.kpisTotal.calidadVisual}%`}
+                  value={`${stats.kpisTotal.calidadVisual}/100%`}
                   subtext="Consistencia y acabado UI"
                   trend={selectedDeveloper === 'All' ? "Promedio equipo" : "Individual"}
                   trendType="positive"
@@ -502,26 +563,54 @@ export default function DashboardHome() {
               {/* Developer Competencies and Specific Bug charts */}
               <div className="charts-layout">
                 <DeveloperSkillsBreakdown developers={developers} selectedDevId={selectedDeveloper === 'All' ? 'All' : selectedDeveloperData?.id} />
-                <BugCategoriesDonut kpis={stats.kpisTotal} />
+                <BugCategoriesDonut
+                  kpis={stats.kpisTotal}
+                  developersBreakdown={
+                    selectedDeveloper === 'All'
+                      ? developers.map((d) => ({ id: d.id, name: d.name, erroresVisuales: d.kpisTotal.erroresVisuales, retrabajo: d.kpisTotal.retrabajo }))
+                      : undefined
+                  }
+                />
               </div>
 
               {/* Ranking Grid (Main focus) */}
-              <DeveloperLeaderboard developers={developers} />
+              <DeveloperLeaderboard
+                developers={developers}
+                highlightedDevId={selectedDeveloper !== 'All' ? selectedDeveloperData?.id : undefined}
+              />
+
+              {/* Últimas 5 observaciones (solo con el filtro en "Todos") */}
+              {selectedDeveloper === 'All' && (
+                <RecentObservations reviews={allReviews.slice(0, 5)} onSelectReview={handleSelectObservation} />
+              )}
 
               {/* Audit history list */}
-              <RecentLogs logs={filteredReviews} onDeleteReview={handleDeleteReview} />
+              <RecentLogs
+                logs={filteredReviews}
+                onDeleteReview={handleDeleteReview}
+                onReopenReview={handleReopenReview}
+                jumpTarget={logJumpTarget}
+              />
             </div>
           )}
 
           {currentTab === 'metrics' && (
             <div className="view-pane animate-fade-in">
-              <RecentLogs logs={filteredReviews} onDeleteReview={handleDeleteReview} />
+              <RecentLogs logs={filteredReviews} onDeleteReview={handleDeleteReview} onReopenReview={handleReopenReview} />
             </div>
           )}
 
           {currentTab === 'validator' && (
             <div className="view-pane animate-fade-in">
-              <InteractiveValidator onAddReview={handleAddReview} developers={developersDropdown} projects={allProjects} assignments={projectAssignments} preselectedDevId={preselectedDevId} />
+              <InteractiveValidator
+                onAddReview={handleAddReview}
+                developers={developersDropdown}
+                projects={allProjects}
+                assignments={projectAssignments}
+                preselectedDevId={preselectedDevId}
+                reopenContext={reopenContext}
+                onReopenHandled={() => setReopenContext(null)}
+              />
             </div>
           )}
 
@@ -544,7 +633,9 @@ export default function DashboardHome() {
                         onClick={() => { setActiveProfileId(d.id); setSelectedDeveloper(d.name); }}
                         className={`dev-profile-tab ${activeProfileId === d.id ? 'active' : ''}`}
                       >
-                        <span className="tab-avatar">{d.avatar}</span>
+                        <span className="tab-avatar">
+                          {d.avatarUrl ? <img src={d.avatarUrl} alt={d.name} className="avatar-img" /> : d.avatar}
+                        </span>
                         <div className="tab-meta">
                           <strong>{d.name}</strong>
                           <span>{d.role}</span>
@@ -558,7 +649,13 @@ export default function DashboardHome() {
                   {activeProfileData ? (
                     <div className="profile-container animate-fade-in">
                       <div className="profile-hero-row">
-                        <div className="profile-hero-avatar">{activeProfileData.avatar}</div>
+                        <div className="profile-hero-avatar">
+                          {activeProfileData.avatarUrl ? (
+                            <img src={activeProfileData.avatarUrl} alt={activeProfileData.name} className="avatar-img" />
+                          ) : (
+                            activeProfileData.avatar
+                          )}
+                        </div>
                         <div className="profile-hero-titles">
                           <h2>{activeProfileData.name}</h2>
                           <p>{activeProfileData.role}</p>
@@ -627,7 +724,7 @@ export default function DashboardHome() {
                             <tbody>
                               {activeProfileData.reviews.map((rev) => (
                                 <tr key={rev.id}>
-                                  <td className="log-id-cell">{rev.id}</td>
+                                  <td className="log-id-cell">{rev.reviewCode || rev.id}</td>
                                   <td><strong>{rev.taskName}</strong></td>
                                   <td>
                                     <span className={`score-badge ${rev.score >= 90 ? 'score-excellent' : rev.score >= 80 ? 'score-good' : 'score-poor'}`}>
@@ -796,7 +893,15 @@ export default function DashboardHome() {
           font-weight: 700;
           font-size: 0.8rem;
           flex-shrink: 0;
+          overflow: hidden;
           transition: background 0.25s ease, box-shadow 0.25s ease;
+        }
+
+        .avatar-img {
+          width: 100%;
+          height: 100%;
+          border-radius: 50%;
+          object-fit: cover;
         }
 
         .dev-profile-tab.active .tab-avatar {
@@ -847,6 +952,7 @@ export default function DashboardHome() {
           display: flex;
           align-items: center;
           justify-content: center;
+          overflow: hidden;
           box-shadow: var(--shadow-glow);
         }
 

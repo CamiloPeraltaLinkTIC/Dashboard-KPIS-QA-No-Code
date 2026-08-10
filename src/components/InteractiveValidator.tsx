@@ -19,17 +19,28 @@ interface ProjectAssignment {
   project_id: string;
 }
 
+interface ReopenContext {
+  parentReviewId: string;
+  parentReviewCode?: string;
+  taskName: string;
+  devId: string;
+  projectId?: string;
+  parentRetrabajo: number;
+}
+
 interface InteractiveValidatorProps {
-  onAddReview: (devId: string, projectId: string, review: DeveloperReview) => void;
+  onAddReview: (devId: string, projectId: string, review: DeveloperReview, parentReviewId?: string) => void;
   developers: DeveloperDropdownItem[];
   projects: ProjectDropdownItem[];
   assignments: ProjectAssignment[];
   preselectedDevId?: string;
+  reopenContext?: ReopenContext | null;
+  onReopenHandled?: () => void;
 }
 
-export default function InteractiveValidator({ onAddReview, developers, projects, assignments, preselectedDevId }: InteractiveValidatorProps) {
+export default function InteractiveValidator({ onAddReview, developers, projects, assignments, preselectedDevId, reopenContext, onReopenHandled }: InteractiveValidatorProps) {
   const { profile } = useAuth();
-  const [selectedDevId, setSelectedDevId] = useState(preselectedDevId || developers[0]?.id || '');
+  const [selectedDevId, setSelectedDevId] = useState(preselectedDevId || reopenContext?.devId || developers[0]?.id || '');
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [taskName, setTaskName] = useState('');
   const [notes, setNotes] = useState('');
@@ -38,6 +49,7 @@ export default function InteractiveValidator({ onAddReview, developers, projects
     score: number;
     status: 'approved' | 'rejected' | 'in_review';
   } | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   // Solo los proyectos enlazados al desarrollador seleccionado
   const availableProjects = useMemo(() => {
@@ -61,6 +73,24 @@ export default function InteractiveValidator({ onAddReview, developers, projects
       setSelectedDevId(preselectedDevId);
     }
   }, [preselectedDevId]);
+
+  // Al reabrir una revisión desde el Historial, precarga el dev y la tarea
+  // (el reintento queda vinculado a la revisión original vía parentReviewId).
+  // El Retrabajo queda bloqueado y es automático: retrabajo de la revisión
+  // que se reabre + 1, así refleja cuántas veces se ha reabierto esa cadena
+  // (reabrir de nuevo un reintento con retrabajo=1 da retrabajo=2, etc.).
+  useEffect(() => {
+    if (reopenContext) {
+      setSelectedDevId(reopenContext.devId);
+      if (reopenContext.projectId) {
+        setSelectedProjectId(reopenContext.projectId);
+      }
+      // Evita que el sufijo se apile si se reabre un reintento que ya lo tenía.
+      const baseTaskName = reopenContext.taskName.replace(/\s*\(Reintento\)\s*$/i, '');
+      setTaskName(`${baseTaskName} (Reintento)`);
+      setRetrabajo(reopenContext.parentRetrabajo + 1);
+    }
+  }, [reopenContext]);
 
   // Mantiene el proyecto seleccionado sincronizado con los proyectos
   // disponibles para el dev actual (cambia al elegir otro desarrollador).
@@ -140,7 +170,7 @@ export default function InteractiveValidator({ onAddReview, developers, projects
       qaAnalyst
     };
 
-    onAddReview(selectedDevId, selectedProjectId, newReview);
+    onAddReview(selectedDevId, selectedProjectId, newReview, reopenContext?.parentReviewId);
 
     // Reset Form
     setTaskName('');
@@ -153,6 +183,7 @@ export default function InteractiveValidator({ onAddReview, developers, projects
 
     const selectedDevName = developers.find(d => d.id === selectedDevId)?.name || 'Desarrollador';
     setSuccessModal({ devName: selectedDevName, score: newReview.score, status: newReview.status });
+    onReopenHandled?.();
   };
 
   const statusInfo: Record<'approved' | 'rejected' | 'in_review', { label: string; className: string; icon: string }> = {
@@ -181,10 +212,22 @@ export default function InteractiveValidator({ onAddReview, developers, projects
         </div>
 
         <form onSubmit={handleSubmit} className="validator-form">
+          {reopenContext && (
+            <div className="reopen-banner">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                <path d="M3 3v5h5" />
+              </svg>
+              <span>
+                Reabriendo <strong>{reopenContext.parentReviewCode || reopenContext.parentReviewId}</strong> — este reintento quedará vinculado a la revisión original para trazabilidad y su Retrabajo queda fijo en {retrabajo}.
+              </span>
+            </div>
+          )}
+
           <div className="form-row-2col">
             <div className="form-group">
               <label htmlFor="val-dev">Desarrollador a Calificar</label>
-              <div className="select-icon-wrap">
+              <div className={`select-icon-wrap ${reopenContext ? 'select-locked' : ''}`}>
                 <svg className="field-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                   <circle cx="12" cy="7" r="4" />
@@ -193,6 +236,7 @@ export default function InteractiveValidator({ onAddReview, developers, projects
                   id="val-dev"
                   value={selectedDevId}
                   onChange={(e) => setSelectedDevId(e.target.value)}
+                  disabled={!!reopenContext}
                 >
                   {developers.map((dev) => (
                     <option key={dev.id} value={dev.id}>
@@ -201,11 +245,12 @@ export default function InteractiveValidator({ onAddReview, developers, projects
                   ))}
                 </select>
               </div>
+              {reopenContext && <small className="help-text">Fijo: debe ser el mismo desarrollador de la revisión original.</small>}
             </div>
 
             <div className="form-group">
               <label htmlFor="val-project">Proyecto</label>
-              <div className="select-icon-wrap">
+              <div className={`select-icon-wrap ${reopenContext ? 'select-locked' : ''}`}>
                 <svg className="field-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
                 </svg>
@@ -214,7 +259,7 @@ export default function InteractiveValidator({ onAddReview, developers, projects
                   value={selectedProjectId}
                   onChange={(e) => setSelectedProjectId(e.target.value)}
                   required
-                  disabled={availableProjects.length === 0}
+                  disabled={availableProjects.length === 0 || !!reopenContext}
                 >
                   {availableProjects.length === 0 ? (
                     <option value="">Sin proyectos enlazados</option>
@@ -230,6 +275,7 @@ export default function InteractiveValidator({ onAddReview, developers, projects
                   )}
                 </select>
               </div>
+              {reopenContext && <small className="help-text">Fijo: debe ser el mismo proyecto de la revisión original.</small>}
             </div>
           </div>
 
@@ -366,7 +412,7 @@ export default function InteractiveValidator({ onAddReview, developers, projects
                 </div>
               </div>
 
-              <div className="counter-box counter-warning">
+              <div className="counter-box counter-warning counter-locked">
                 <span className="counter-label" style={{color: 'var(--color-warning)'}}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
@@ -375,19 +421,16 @@ export default function InteractiveValidator({ onAddReview, developers, projects
                   Retrabajo
                 </span>
                 <div className="counter-actions">
-                  <button type="button" onClick={() => setRetrabajo(Math.max(0, retrabajo - 1))} aria-label="Disminuir Retrabajo">-</button>
                   <input
                     type="number"
                     className="counter-value"
                     value={retrabajo}
-                    min={0}
-                    max={999}
-                    onChange={(e) => handleCounterInput(e.target.value, setRetrabajo, 999)}
-                    onFocus={(e) => e.target.select()}
+                    readOnly
+                    disabled
                     aria-label="Retrabajo"
                   />
-                  <button type="button" onClick={() => setRetrabajo(retrabajo + 1)} aria-label="Aumentar Retrabajo">+</button>
                 </div>
+                <span className="counter-locked-note">Aumento automático</span>
               </div>
             </div>
           </div>
@@ -415,6 +458,62 @@ export default function InteractiveValidator({ onAddReview, developers, projects
           </button>
         </form>
       </div>
+
+      {/* Botón flotante de ayuda: explica cómo se calcula la calificación */}
+      <button
+        type="button"
+        className="help-fab"
+        onClick={() => setHelpOpen(true)}
+        aria-label="¿Cómo funciona la calificación?"
+        title="¿Cómo funciona la calificación?"
+      >
+        ?
+      </button>
+
+      {helpOpen && (
+        <div className="help-overlay" onClick={() => setHelpOpen(false)}>
+          <div className="help-card glass" onClick={(e) => e.stopPropagation()}>
+            <button type="button" className="help-close" onClick={() => setHelpOpen(false)} aria-label="Cerrar">
+              ✕
+            </button>
+
+            <h3>¿Cómo funciona la calificación?</h3>
+
+            <div className="help-section">
+              <h4>1. Las 5 métricas</h4>
+              <ul>
+                <li><strong>Píxel Perfecto (0-100%)</strong> — fidelidad visual respecto al diseño.</li>
+                <li><strong>Cumplimiento DoD (0-100%)</strong> — qué tan bien cumple la Definición de Terminado.</li>
+                <li><strong>Calidad Visual (0-100%)</strong> — consistencia y acabado de la interfaz.</li>
+                <li><strong>Errores Visuales</strong> — cantidad de bugs encontrados (no es %, es un conteo).</li>
+                <li><strong>Retrabajo</strong> — cantidad de incidencias que se devolvieron al developer.</li>
+              </ul>
+            </div>
+
+            <div className="help-section">
+              <h4>2. La fórmula del score</h4>
+              <div className="help-formula">
+                <p>Base = promedio(Píxel Perfecto, Cumplimiento DoD, Calidad Visual)</p>
+                <p>Penalización = (Errores Visuales × 2) + (Retrabajo × 5)</p>
+                <p className="help-formula-result">Score final = Base − Penalización (mínimo 0)</p>
+              </div>
+            </div>
+
+            <div className="help-section">
+              <h4>3. Estado según el score</h4>
+              <div className="help-thresholds">
+                <span className="help-badge text-success">≥ 85 → Aprobado</span>
+                <span className="help-badge text-warning">75-84 → En Revisión</span>
+                <span className="help-badge text-danger">&lt; 75 → Rechazado</span>
+              </div>
+            </div>
+
+            <p className="help-footnote">
+              El Retrabajo es la penalización más pesada (−5 por unidad) y ahora es automático, no lo edita el QA: queda en 0 en una calificación nueva, y en 1 cuando la revisión viene de "Reabrir" — porque reabrir un ticket es, por definición, un retrabajo.
+            </p>
+          </div>
+        </div>
+      )}
 
       {successModal && (
         <div className="success-overlay" onClick={() => setSuccessModal(null)}>
@@ -560,6 +659,29 @@ export default function InteractiveValidator({ onAddReview, developers, projects
           }
         }
 
+        .reopen-banner {
+          display: flex;
+          align-items: flex-start;
+          gap: 10px;
+          padding: 12px 16px;
+          border-radius: var(--radius-sm);
+          border: 1px solid var(--color-primary);
+          background: var(--color-primary-glow);
+          color: var(--text-secondary);
+          font-size: 0.82rem;
+          line-height: 1.5;
+        }
+
+        .reopen-banner strong {
+          color: var(--text-primary);
+        }
+
+        .reopen-banner svg {
+          color: var(--color-primary);
+          flex-shrink: 0;
+          margin-top: 2px;
+        }
+
         .form-row-2col {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -610,6 +732,21 @@ export default function InteractiveValidator({ onAddReview, developers, projects
         .input-icon-wrap:focus-within .field-icon,
         .select-icon-wrap:focus-within .field-icon {
           color: var(--color-primary);
+        }
+
+        .select-icon-wrap.select-locked {
+          opacity: 0.65;
+        }
+
+        .select-icon-wrap.select-locked select {
+          cursor: not-allowed;
+        }
+
+        .help-text {
+          font-size: 0.72rem;
+          color: var(--text-muted);
+          margin-top: 4px;
+          line-height: 1.3;
         }
 
         .input-icon-wrap input,
@@ -834,6 +971,23 @@ export default function InteractiveValidator({ onAddReview, developers, projects
           box-shadow: 0 0 0 3px var(--color-primary-glow);
         }
 
+        .counter-box.counter-locked {
+          opacity: 0.75;
+        }
+
+        .counter-actions button:disabled,
+        .counter-value:disabled {
+          cursor: not-allowed;
+          opacity: 0.5;
+        }
+
+        .counter-locked-note {
+          font-size: 0.62rem;
+          color: var(--text-muted);
+          text-align: center;
+          line-height: 1.3;
+        }
+
         .submit-qa-btn {
           margin-top: 8px;
           background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
@@ -1046,6 +1200,177 @@ export default function InteractiveValidator({ onAddReview, developers, projects
         @keyframes cardPopIn {
           from { opacity: 0; transform: scale(0.92) translateY(8px); }
           to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        /* Botón flotante de ayuda */
+        .help-fab {
+          position: fixed;
+          right: 24px;
+          top: 50%;
+          transform: translateY(-50%);
+          width: 46px;
+          height: 46px;
+          border-radius: 50%;
+          border: none;
+          background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+          color: white;
+          font-size: 1.2rem;
+          font-weight: 800;
+          cursor: pointer;
+          box-shadow: var(--shadow-glow);
+          z-index: 200;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: transform 0.2s ease;
+        }
+
+        .help-fab:hover {
+          transform: translateY(-50%) scale(1.08);
+        }
+
+        @media (max-width: 960px) {
+          .help-fab {
+            right: 16px;
+            top: auto;
+            bottom: 24px;
+            transform: none;
+          }
+
+          .help-fab:hover {
+            transform: scale(1.08);
+          }
+        }
+
+        .help-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.55);
+          backdrop-filter: blur(4px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+          padding: 20px;
+          animation: overlayFadeIn 0.2s ease;
+        }
+
+        .help-card {
+          position: relative;
+          width: 100%;
+          max-width: 480px;
+          max-height: 85vh;
+          overflow-y: auto;
+          padding: 32px 28px 24px;
+          border-radius: var(--radius-md);
+          text-align: left;
+          box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+          animation: cardPopIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .help-close {
+          position: absolute;
+          top: 14px;
+          right: 14px;
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
+          border: 1px solid var(--border-color);
+          background: rgba(255, 255, 255, 0.05);
+          color: var(--text-secondary);
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 0.75rem;
+          transition: all 0.2s ease;
+        }
+
+        .help-close:hover {
+          background: var(--color-danger);
+          border-color: var(--color-danger);
+          color: white;
+        }
+
+        .help-card h3 {
+          font-size: 1.15rem;
+          color: var(--text-primary);
+          margin-bottom: 18px;
+          padding-right: 24px;
+        }
+
+        .help-section {
+          margin-bottom: 18px;
+        }
+
+        .help-section h4 {
+          font-size: 0.75rem;
+          color: var(--color-primary);
+          text-transform: uppercase;
+          letter-spacing: 0.03em;
+          font-weight: 700;
+          margin-bottom: 8px;
+        }
+
+        .help-section ul {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          padding-left: 18px;
+        }
+
+        .help-section li {
+          font-size: 0.83rem;
+          color: var(--text-secondary);
+          line-height: 1.5;
+        }
+
+        .help-section li strong {
+          color: var(--text-primary);
+        }
+
+        .help-formula {
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid var(--border-color);
+          border-radius: var(--radius-sm);
+          padding: 14px;
+          font-family: var(--font-mono);
+          font-size: 0.78rem;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          color: var(--text-secondary);
+        }
+
+        [data-theme="light"] .help-formula {
+          background: rgba(0, 0, 0, 0.02);
+        }
+
+        .help-formula-result {
+          color: var(--color-primary);
+          font-weight: 700;
+        }
+
+        .help-thresholds {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+
+        .help-badge {
+          font-size: 0.75rem;
+          font-weight: 700;
+          padding: 5px 10px;
+          border-radius: 999px;
+          border: 1px solid currentColor;
+        }
+
+        .help-footnote {
+          font-size: 0.76rem;
+          color: var(--text-muted);
+          line-height: 1.5;
+          padding-top: 10px;
+          border-top: 1px solid var(--border-color);
         }
       `}</style>
     </div>

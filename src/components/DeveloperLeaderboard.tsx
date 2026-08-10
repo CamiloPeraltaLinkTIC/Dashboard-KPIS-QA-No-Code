@@ -5,9 +5,10 @@ import { DeveloperStat } from '../data/mockData';
 
 interface DeveloperLeaderboardProps {
   developers: DeveloperStat[];
+  highlightedDevId?: string;
 }
 
-export default function DeveloperLeaderboard({ developers }: DeveloperLeaderboardProps) {
+export default function DeveloperLeaderboard({ developers, highlightedDevId }: DeveloperLeaderboardProps) {
   
   const getRatingColor = (rate: number) => {
     if (rate >= 90) return 'var(--color-success)';
@@ -36,10 +37,12 @@ export default function DeveloperLeaderboard({ developers }: DeveloperLeaderboar
             const firstTryRate = getFirstTryRate(dev);
             const ratingColor = getRatingColor(dev.complianceRate);
 
+            const isHighlighted = !!highlightedDevId && dev.id === highlightedDevId;
+
             return (
               <div
                 key={dev.name}
-                className="dev-card glass glass-interactive inspect-corners"
+                className={`dev-card glass glass-interactive inspect-corners ${isHighlighted ? 'dev-card-highlighted' : ''}`}
                 style={{ animationDelay: `${Math.min(index, 8) * 45}ms` }}
               >
                 <div className="dev-rank">
@@ -48,12 +51,17 @@ export default function DeveloperLeaderboard({ developers }: DeveloperLeaderboar
 
                 <div className="dev-identity">
                   <div className="dev-avatar">
-                    {dev.name.split(' ').map(n => n[0]).join('')}
+                    {dev.avatarUrl ? (
+                      <img src={dev.avatarUrl} alt={dev.name} className="dev-avatar-img" />
+                    ) : (
+                      dev.name.split(' ').map(n => n[0]).join('')
+                    )}
                   </div>
                   <div className="dev-info">
                     <h4>{dev.name}</h4>
                     <span>{dev.role}</span>
                   </div>
+                  {isHighlighted && <span className="dev-filtered-badge">Filtrado</span>}
                 </div>
 
                 <div className="dev-stats-row">
@@ -159,6 +167,31 @@ export default function DeveloperLeaderboard({ developers }: DeveloperLeaderboar
             animation: none !important;
             opacity: 1 !important;
           }
+        }
+
+        .dev-card-highlighted {
+          border-color: var(--color-primary);
+          box-shadow: 0 0 0 2px var(--color-primary-glow), var(--shadow-glow);
+        }
+
+        .dev-filtered-badge {
+          font-size: 0.62rem;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.03em;
+          color: var(--color-primary);
+          background: var(--color-primary-glow);
+          border: 1px solid var(--color-primary);
+          border-radius: 999px;
+          padding: 2px 8px;
+          white-space: nowrap;
+        }
+
+        .dev-avatar-img {
+          width: 100%;
+          height: 100%;
+          border-radius: 50%;
+          object-fit: cover;
         }
 
         .dev-rank {

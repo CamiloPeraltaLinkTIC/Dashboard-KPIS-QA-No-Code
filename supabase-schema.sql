@@ -269,3 +269,122 @@ create policy "Admins can manage assignments." on public.nocode_project_assignme
 
 -- Add project_id to nocode_kpis
 alter table public.nocode_kpis add column if not exists project_id uuid references public.nocode_projects(id) on delete set null;
+
+
+-- ============================================================
+-- Nomenclatura de revisiones: REV-<año>-<secuencial 3 dígitos>
+-- ============================================================
+
+-- Contador por año, usado para generar el secuencial de forma atómica
+-- (el UPDATE/INSERT sobre la fila del año actúa como lock de fila).
+create table if not exists public.nocode_review_counters (
+  year integer primary key,
+  last_seq integer not null default 0
+);
+
+-- Supabase activa RLS automáticamente en tablas nuevas creadas desde el SQL
+-- Editor. Esta tabla es de uso interno (solo la toca la función de abajo),
+-- así que se deja sin policies: nadie puede leerla/escribirla directamente
+-- vía API, solo a través de la función security definer.
+alter table public.nocode_review_counters enable row level security;
+
+alter table public.nocode_kpis add column if not exists review_code text;
+
+-- security definer (mismo patrón que get_auth_user_role/handle_nocode_new_user):
+-- el QA/usuario que guarda una calificación no tiene ni debe tener permiso
+-- directo sobre nocode_review_counters; la función necesita bypassear esa RLS
+-- para poder incrementar el contador.
+create or replace function public.set_review_code()
+returns trigger as $$
+declare
+  yr integer;
+  seq integer;
+begin
+  if new.review_code is not null then
+    return new;
+  end if;
+
+  yr := extract(year from coalesce(new.created_at, timezone('utc', now())));
+
+  insert into public.nocode_review_counters (year, last_seq)
+  values (yr, 1)
+  on conflict (year) do update set last_seq = public.nocode_review_counters.last_seq + 1
+  returning last_seq into seq;
+
+  new.review_code := 'REV-' || yr || '-' || lpad(seq::text, 3, '0');
+  return new;
+end;
+$$ language plpgsql security definer set search_path = public;
+
+drop trigger if exists set_review_code_trigger on public.nocode_kpis;
+create trigger set_review_code_trigger
+  before insert on public.nocode_kpis
+  for each row execute procedure public.set_review_code();
+
+-- Backfill idempotente: solo toca filas que aún no tengan código,
+-- respetando el orden cronológico de creación.
+do $$
+declare
+  r record;
+  yr integer;
+  seq integer;
+begin
+  for r in
+    select id, created_at from public.nocode_kpis
+    where review_code is null
+    order by created_at asc
+  loop
+    yr := extract(year from r.created_at);
+    insert into public.nocode_review_counters (year, last_seq)
+    values (yr, 1)
+    on conflict (year) do update set last_seq = public.nocode_review_counters.last_seq + 1
+    returning last_seq into seq;
+    update public.nocode_kpis set review_code = 'REV-' || yr || '-' || lpad(seq::text, 3, '0') where id = r.id;
+  end loop;
+end $$;
+
+alter table public.nocode_kpis drop constraint if exists nocode_kpis_review_code_key;
+alter table public.nocode_kpis add constraint nocode_kpis_review_code_key unique (review_code);
+
+
+-- ============================================================
+-- Reabrir revisiones: vincula un reintento con la revisión
+-- original para trazabilidad (ambas quedan visibles, ninguna
+-- reemplaza a la otra).
+-- ============================================================
+alter table public.nocode_kpis add column if not exists parent_review_id uuid references public.nocode_kpis(id) on delete set null;
+
+
+-- ============================================================
+-- Foto de perfil (avatar)
+-- ============================================================
+alter table public.nocode_profiles add column if not exists avatar_url text;
+
+-- Bucket público de solo lectura; cada usuario autenticado sube/edita/borra
+-- únicamente dentro de su propia carpeta ({user_id}/...).
+insert into storage.buckets (id, name, public)
+values ('avatars', 'avatars', true)
+on conflict (id) do nothing;
+
+drop policy if exists "Avatar images are publicly accessible." on storage.objects;
+create policy "Avatar images are publicly accessible."
+  on storage.objects for select
+  using ( bucket_id = 'avatars' );
+
+drop policy if exists "Users can upload their own avatar." on storage.objects;
+create policy "Users can upload their own avatar."
+  on storage.objects for insert
+  to authenticated
+  with check ( bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text );
+
+drop policy if exists "Users can update their own avatar." on storage.objects;
+create policy "Users can update their own avatar."
+  on storage.objects for update
+  to authenticated
+  using ( bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text );
+
+drop policy if exists "Users can delete their own avatar." on storage.objects;
+create policy "Users can delete their own avatar."
+  on storage.objects for delete
+  to authenticated
+  using ( bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text );

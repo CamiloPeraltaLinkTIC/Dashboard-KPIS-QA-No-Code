@@ -2,20 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/components/AuthProvider';
-import { formatDateTime } from '@/lib/format';
+import { supabase } from '@/lib/supabase/client';
 
 interface DeveloperItem {
   id: string;
   name: string;
-}
-
-interface ReviewNotification {
-  id: string;
-  developerName: string;
-  taskName: string;
-  score: number;
-  status: string;
-  date: string;
 }
 
 interface HeaderProps {
@@ -23,19 +14,19 @@ interface HeaderProps {
   selectedDeveloper: string;
   setSelectedDeveloper: (developer: string) => void;
   developers: DeveloperItem[];
-  recentReviews: ReviewNotification[];
 }
 
 export default function Header({
   currentTab,
   selectedDeveloper,
   setSelectedDeveloper,
-  developers,
-  recentReviews
+  developers
 }: HeaderProps) {
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, user, refreshProfile } = useAuth();
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme') as 'dark' | 'light' | null;
@@ -49,6 +40,59 @@ export default function Header({
     setTheme(nextTheme);
     document.documentElement.setAttribute('data-theme', nextTheme);
     localStorage.setItem('theme', nextTheme);
+  };
+
+  const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !user) return;
+
+    if (!file.type.startsWith('image/')) {
+      setAvatarError('El archivo debe ser una imagen.');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setAvatarError('La imagen no debe superar 2MB.');
+      return;
+    }
+
+    setAvatarUploading(true);
+    setAvatarError(null);
+    try {
+      const ext = file.name.split('.').pop() || 'jpg';
+      const path = `${user.id}/avatar.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(path, file, { upsert: true, cacheControl: '3600' });
+
+      if (uploadError) {
+        setAvatarError('No se pudo subir la imagen: ' + uploadError.message);
+        return;
+      }
+
+      const { data: publicUrlData } = supabase.storage.from('avatars').getPublicUrl(path);
+      // Cache-busting: el mismo path se reutiliza (upsert), así que sin esto
+      // el navegador podría seguir mostrando la foto anterior.
+      const avatarUrl = `${publicUrlData.publicUrl}?t=${Date.now()}`;
+
+      const { error: updateError } = await supabase
+        .from('nocode_profiles')
+        .update({ avatar_url: avatarUrl })
+        .eq('id', user.id);
+
+      if (updateError) {
+        setAvatarError('No se pudo guardar la foto de perfil: ' + updateError.message);
+        return;
+      }
+
+      await refreshProfile();
+      setAvatarMenuOpen(false);
+    } catch (err) {
+      setAvatarError('Error inesperado: ' + (err instanceof Error ? err.message : ''));
+    } finally {
+      setAvatarUploading(false);
+    }
   };
 
   const getTitle = () => {
@@ -130,34 +174,14 @@ export default function Header({
     }
   };
 
-  const getStatusIcon = (status: string) => {
-    if (status === 'approved') {
-      return (
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M20 6 9 17l-5-5" />
-        </svg>
-      );
-    }
-    if (status === 'rejected') {
-      return (
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M18 6 6 18M6 6l12 12" />
-        </svg>
-      );
-    }
-    return (
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10" />
-        <path d="M12 6v6l4 2" />
-      </svg>
-    );
-  };
-
   return (
     <header className="header-container glass animate-fade-in">
       <div className="header-titles">
         <span className="header-tab-icon">{getTabIcon()}</span>
         <div>
+          {currentTab === 'overview' && (
+            <p className="header-welcome">Bienvenido, {profile?.full_name || profile?.username || 'Usuario'}</p>
+          )}
           <h1>{getTitle()}</h1>
           <p>{getSubtitle()}</p>
         </div>
@@ -199,65 +223,43 @@ export default function Header({
           )}
         </button>
 
-        {/* Notification Bell */}
-        <div className="notification-wrapper">
-          <button
-            className="icon-btn notification-btn"
-            onClick={() => setNotificationsOpen(!notificationsOpen)}
-            title="Notificaciones"
-            aria-label="Notificaciones"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-              <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-            </svg>
-            {recentReviews.length > 0 && <span className="notification-badge"></span>}
-          </button>
-
-          {notificationsOpen && (
-            <div className="notifications-dropdown">
-              <div className="dropdown-header">
-                <h3>Últimos Eventos de QA</h3>
-                <button className="clear-btn" onClick={() => setNotificationsOpen(false)}>Cerrar</button>
-              </div>
-              <div className="dropdown-content">
-                {recentReviews.length === 0 ? (
-                  <div className="notification-item">
-                    <div className="item-marker tone-neutral">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-                      </svg>
-                    </div>
-                    <div className="item-text">
-                      <p>Aún no hay evaluaciones registradas.</p>
-                    </div>
-                  </div>
-                ) : (
-                  recentReviews.map((rev) => {
-                    const statusText =
-                      rev.status === 'approved' ? 'Aprobado' :
-                      rev.status === 'rejected' ? 'Rechazado' : 'En revisión';
-                    return (
-                      <div key={rev.id} className={`notification-item ${rev.status === 'rejected' ? 'unread' : ''}`}>
-                        <div className={`item-marker tone-${rev.status}`}>{getStatusIcon(rev.status)}</div>
-                        <div className="item-text">
-                          <p><strong>{rev.developerName}</strong> — {rev.taskName}: <strong>{rev.score}/100</strong> ({statusText})</p>
-                          <span className={rev.status === 'rejected' ? 'danger-text' : ''}>{formatDateTime(rev.date)}</span>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
         {/* Profile Card */}
         <div className="user-profile">
-          <div className="profile-avatar">
-            {profile?.role?.substring(0, 2).toUpperCase() || 'QA'}
-            <span className="profile-status-dot" />
+          <div className="avatar-wrapper">
+            <button
+              type="button"
+              className="profile-avatar"
+              onClick={() => setAvatarMenuOpen((v) => !v)}
+              title="Cambiar foto de perfil"
+              aria-label="Cambiar foto de perfil"
+            >
+              {profile?.avatar_url ? (
+                <img src={profile.avatar_url} alt="" className="profile-avatar-img" />
+              ) : (
+                profile?.role?.substring(0, 2).toUpperCase() || 'QA'
+              )}
+              <span className="profile-status-dot" />
+            </button>
+
+            {avatarMenuOpen && (
+              <div className="avatar-menu">
+                <div className="avatar-menu-preview">
+                  {profile?.avatar_url ? (
+                    <img src={profile.avatar_url} alt="" className="avatar-menu-img" />
+                  ) : (
+                    <span className="avatar-menu-placeholder">{profile?.role?.substring(0, 2).toUpperCase() || 'QA'}</span>
+                  )}
+                </div>
+                <label className="avatar-upload-label">
+                  {avatarUploading ? 'Subiendo...' : 'Subir nueva foto'}
+                  <input type="file" accept="image/*" onChange={handleAvatarFileChange} disabled={avatarUploading} hidden />
+                </label>
+                {avatarError && <p className="avatar-error">{avatarError}</p>}
+                <button type="button" className="avatar-menu-close" onClick={() => setAvatarMenuOpen(false)}>
+                  Cerrar
+                </button>
+              </div>
+            )}
           </div>
           <div className="profile-info">
             <span className="user-name">{profile?.full_name || profile?.username || 'Usuario'}</span>
@@ -301,6 +303,13 @@ export default function Header({
           color: white;
           background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
           box-shadow: var(--shadow-glow);
+        }
+
+        .header-welcome {
+          font-size: 0.78rem;
+          font-weight: 600;
+          color: var(--color-primary);
+          margin-bottom: 2px;
         }
 
         .header-titles h1 {
@@ -405,149 +414,9 @@ export default function Header({
           }
         }
 
-        .notification-badge {
-          position: absolute;
-          top: 8px;
-          right: 8px;
-          width: 8px;
-          height: 8px;
-          background-color: var(--color-danger);
-          border-radius: 50%;
-          border: 2px solid var(--bg-app);
-          box-shadow: 0 0 6px var(--color-danger);
-          animation: notifPulse 2s infinite alternate;
-        }
-
-        @keyframes notifPulse {
-          0% { transform: scale(0.9); opacity: 0.75; }
-          100% { transform: scale(1.25); opacity: 1; }
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          .notification-badge {
-            animation: none !important;
-          }
-        }
-
-        .notification-wrapper {
-          position: relative;
-        }
-
-        .notifications-dropdown {
-          position: absolute;
-          top: 48px;
-          right: 0;
-          width: 320px;
-          border-radius: var(--radius-md);
-          border: 1px solid var(--border-color);
-          box-shadow: var(--shadow-lg);
-          padding: 16px;
-          z-index: 120;
-          background: var(--bg-elevated);
-          animation: dropdownFade 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
-
         @keyframes dropdownFade {
           from { opacity: 0; transform: translateY(10px); }
           to { opacity: 1; transform: translateY(0); }
-        }
-
-        .dropdown-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          border-bottom: 1px solid var(--border-color);
-          padding-bottom: 10px;
-          margin-bottom: 12px;
-        }
-
-        .dropdown-header h3 {
-          font-size: 0.9rem;
-        }
-
-        .clear-btn {
-          background: transparent;
-          border: none;
-          color: var(--color-primary);
-          font-size: 0.75rem;
-          cursor: pointer;
-          font-weight: 600;
-        }
-
-        .dropdown-content {
-          display: flex;
-          flex-direction: column;
-          gap: 10px;
-          max-height: 250px;
-          overflow-y: auto;
-        }
-
-        .notification-item {
-          display: flex;
-          align-items: flex-start;
-          gap: 10px;
-          padding: 8px;
-          border-radius: var(--radius-xs);
-          transition: background-color 0.2s ease;
-        }
-
-        .notification-item:hover {
-          background: rgba(255, 255, 255, 0.03);
-        }
-
-        [data-theme="light"] .notification-item:hover {
-          background: rgba(0, 0, 0, 0.02);
-        }
-
-        .notification-item.unread {
-          background: rgba(124, 58, 237, 0.05);
-        }
-
-        .item-marker {
-          width: 22px;
-          height: 22px;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-shrink: 0;
-          margin-top: 1px;
-        }
-
-        .item-marker.tone-approved {
-          color: var(--color-success);
-          background: hsla(var(--hue-success), 70%, 45%, 0.15);
-        }
-
-        .item-marker.tone-rejected {
-          color: var(--color-danger);
-          background: hsla(var(--hue-danger), 85%, 55%, 0.15);
-        }
-
-        .item-marker.tone-in_review {
-          color: var(--color-warning);
-          background: hsla(var(--hue-warning), 85%, 55%, 0.15);
-        }
-
-        .item-marker.tone-neutral {
-          color: var(--text-muted);
-          background: rgba(255, 255, 255, 0.05);
-        }
-
-        .item-text p {
-          font-size: 0.78rem;
-          line-height: 1.3;
-          margin-bottom: 4px;
-        }
-
-        .item-text span {
-          font-size: 0.68rem;
-          color: var(--text-muted);
-        }
-
-        .danger-text {
-          color: var(--color-danger) !important;
-          font-weight: 500;
         }
 
         .user-profile {
@@ -556,6 +425,10 @@ export default function Header({
           gap: 10px;
           padding-left: 16px;
           border-left: 1px solid var(--border-color);
+        }
+
+        .avatar-wrapper {
+          position: relative;
         }
 
         .profile-avatar {
@@ -571,6 +444,96 @@ export default function Header({
           color: white;
           font-size: 0.85rem;
           box-shadow: var(--shadow-glow);
+          border: none;
+          padding: 0;
+          overflow: hidden;
+          cursor: pointer;
+        }
+
+        .profile-avatar-img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          border-radius: 50%;
+        }
+
+        .avatar-menu {
+          position: absolute;
+          top: 46px;
+          right: 0;
+          width: 220px;
+          border-radius: var(--radius-md);
+          border: 1px solid var(--border-color);
+          box-shadow: var(--shadow-lg);
+          padding: 16px;
+          z-index: 120;
+          background: var(--bg-elevated);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 10px;
+          animation: dropdownFade 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .avatar-menu-preview {
+          width: 64px;
+          height: 64px;
+          border-radius: 50%;
+          overflow: hidden;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: linear-gradient(135deg, var(--color-secondary), var(--color-primary));
+          box-shadow: var(--shadow-glow);
+        }
+
+        .avatar-menu-img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+
+        .avatar-menu-placeholder {
+          color: white;
+          font-weight: 700;
+          font-size: 1.1rem;
+        }
+
+        .avatar-upload-label {
+          width: 100%;
+          text-align: center;
+          padding: 8px 12px;
+          border-radius: var(--radius-sm);
+          background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+          color: white;
+          font-size: 0.78rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: filter 0.2s ease;
+        }
+
+        .avatar-upload-label:hover {
+          filter: brightness(1.1);
+        }
+
+        .avatar-error {
+          font-size: 0.7rem;
+          color: var(--color-danger);
+          text-align: center;
+          line-height: 1.4;
+        }
+
+        .avatar-menu-close {
+          background: transparent;
+          border: none;
+          color: var(--text-muted);
+          font-size: 0.72rem;
+          cursor: pointer;
+          font-weight: 600;
+        }
+
+        .avatar-menu-close:hover {
+          color: var(--text-primary);
         }
 
         .profile-status-dot {

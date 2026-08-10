@@ -1,5 +1,6 @@
 'use server';
 
+import { randomBytes } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import { translateAuthError } from '@/lib/authErrors';
 import { resolveEmail } from '@/lib/email';
@@ -41,20 +42,22 @@ async function requireAdmin(accessToken: string | null | undefined): Promise<{ e
   return { userId: user.id };
 }
 
-export async function createNewUser(formData: FormData) {
-  if (!supabaseServiceKey) {
-    return { success: false, error: 'SUPABASE_SERVICE_ROLE_KEY no está configurada en el entorno del servidor.' };
-  }
-
-  const auth = await requireAdmin(formData.get('accessToken') as string);
-  if ('error' in auth) return { success: false, error: auth.error };
-
-  const username = formData.get('username') as string;
-  const password = formData.get('password') as string;
-  const role = formData.get('role') as string;
-  const assignedQaId = formData.get('assignedQaId') as string;
-  const fullName = formData.get('fullName') as string;
-
+// Lógica de creación compartida entre la creación individual (createNewUser)
+// y la carga masiva (bulkCreateUsers). No valida permisos: quien llama debe
+// haber pasado ya por requireAdmin().
+async function createUserRecord({
+  username,
+  password,
+  role,
+  fullName,
+  assignedQaId,
+}: {
+  username: string;
+  password: string;
+  role: string;
+  fullName?: string;
+  assignedQaId?: string;
+}): Promise<{ success: boolean; error?: string; message?: string }> {
   if (!username || !password || !role) {
     return { success: false, error: 'Faltan campos requeridos.' };
   }
@@ -82,7 +85,7 @@ export async function createNewUser(formData: FormData) {
     // 2. The trigger `on_auth_user_created_nocode` will have created the profile automatically.
     // However, it creates it with role 'dev' (or 'admin' según la regla del trigger por email).
     // We need to update the profile with the selected role and QA assignment.
-    
+
     // Give it a brief delay to ensure trigger has executed (usually synchronous in Postgres, but just in case)
     await new Promise(resolve => setTimeout(resolve, 500));
 
@@ -104,6 +107,103 @@ export async function createNewUser(formData: FormData) {
   } catch (error: any) {
     return { success: false, error: error.message || 'Error inesperado del servidor.' };
   }
+}
+
+export async function createNewUser(formData: FormData) {
+  if (!supabaseServiceKey) {
+    return { success: false, error: 'SUPABASE_SERVICE_ROLE_KEY no está configurada en el entorno del servidor.' };
+  }
+
+  const auth = await requireAdmin(formData.get('accessToken') as string);
+  if ('error' in auth) return { success: false, error: auth.error };
+
+  const username = formData.get('username') as string;
+  const password = formData.get('password') as string;
+  const role = formData.get('role') as string;
+  const assignedQaId = formData.get('assignedQaId') as string;
+  const fullName = formData.get('fullName') as string;
+
+  return createUserRecord({ username, password, role, fullName, assignedQaId });
+}
+
+type BulkUserRow = {
+  username: string;
+  fullName?: string;
+  password?: string;
+  role: string;
+  assignedQaUsername?: string;
+};
+
+type BulkUserResult = {
+  row: number;
+  username: string;
+  success: boolean;
+  message?: string;
+  error?: string;
+  generatedPassword?: string;
+};
+
+export async function bulkCreateUsers(rows: BulkUserRow[], accessToken: string): Promise<{ success: boolean; error?: string; results?: BulkUserResult[] }> {
+  if (!supabaseServiceKey) {
+    return { success: false, error: 'SUPABASE_SERVICE_ROLE_KEY no está configurada en el entorno del servidor.' };
+  }
+
+  const auth = await requireAdmin(accessToken);
+  if ('error' in auth) return { success: false, error: auth.error };
+
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return { success: false, error: 'No se recibieron filas para procesar.' };
+  }
+
+  // Resuelve nombre de usuario QA -> id una sola vez para toda la carga.
+  const { data: qaRows } = await supabaseAdmin
+    .from('nocode_profiles')
+    .select('id, username')
+    .eq('role', 'QA');
+  const qaByUsername = new Map((qaRows || []).map((q: any) => [(q.username || '').toLowerCase(), q.id]));
+
+  const allowedRoles = ['dev', 'QA', 'leader', 'admin', 'Administrator'];
+  const results: BulkUserResult[] = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const username = (row.username || '').trim();
+    const role = (row.role || '').trim();
+
+    if (!username || !allowedRoles.includes(role)) {
+      results.push({
+        row: i + 1,
+        username,
+        success: false,
+        error: !username ? 'Falta el nombre de usuario.' : `Rol inválido: "${row.role}".`
+      });
+      continue;
+    }
+
+    let password = (row.password || '').trim();
+    let generatedPassword: string | undefined;
+    if (!password || password.length < 6) {
+      password = randomBytes(6).toString('base64url');
+      generatedPassword = password;
+    }
+
+    let assignedQaId: string | undefined;
+    if (role === 'dev' && row.assignedQaUsername) {
+      assignedQaId = qaByUsername.get(row.assignedQaUsername.trim().toLowerCase());
+    }
+
+    const result = await createUserRecord({ username, password, role, fullName: row.fullName, assignedQaId });
+    results.push({
+      row: i + 1,
+      username,
+      success: result.success,
+      message: result.message,
+      error: result.error,
+      generatedPassword
+    });
+  }
+
+  return { success: true, results };
 }
 
 export async function updateUser(formData: FormData) {

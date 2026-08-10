@@ -1,12 +1,20 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
+
+interface DeveloperBugBreakdown {
+  id: string;
+  name: string;
+  erroresVisuales: number;
+  retrabajo: number;
+}
 
 interface DonutProps {
   kpis: { erroresVisuales: number; retrabajo: number };
+  developersBreakdown?: DeveloperBugBreakdown[];
 }
 
-export function BugCategoriesDonut({ kpis }: DonutProps) {
+export function BugCategoriesDonut({ kpis, developersBreakdown }: DonutProps) {
   const [hoveredSlice, setHoveredSlice] = useState<number | null>(null);
 
   const totalErrores = kpis.erroresVisuales;
@@ -14,9 +22,21 @@ export function BugCategoriesDonut({ kpis }: DonutProps) {
 
   const grandTotal = totalErrores + totalRetrabajo || 1;
   const categories = [
-    { name: 'Errores Visuales y de Diseño', count: totalErrores, color: 'var(--color-danger)', percentage: (totalErrores / grandTotal) * 100 },
-    { name: 'Retrabajo', count: totalRetrabajo, color: 'var(--color-warning)', percentage: (totalRetrabajo / grandTotal) * 100 }
+    { name: 'Errores Visuales y de Diseño', key: 'erroresVisuales' as const, count: totalErrores, color: 'var(--color-danger)', percentage: (totalErrores / grandTotal) * 100 },
+    { name: 'Retrabajo', key: 'retrabajo' as const, count: totalRetrabajo, color: 'var(--color-warning)', percentage: (totalRetrabajo / grandTotal) * 100 }
   ];
+
+  const canShowBreakdown = !!developersBreakdown && developersBreakdown.length > 0;
+
+  // Quiénes tienen la incidencia de la categoría bajo el mouse (tooltip on-hover).
+  const tooltipRows = useMemo(() => {
+    if (hoveredSlice === null || !developersBreakdown) return [];
+    const key = categories[hoveredSlice].key;
+    return developersBreakdown
+      .filter((d) => d[key] > 0)
+      .map((d) => ({ id: d.id, name: d.name, value: d[key] }))
+      .sort((a, b) => b.value - a.value);
+  }, [hoveredSlice, developersBreakdown]);
 
   const radius = 60;
   const circumference = 2 * Math.PI * radius;
@@ -30,6 +50,7 @@ export function BugCategoriesDonut({ kpis }: DonutProps) {
       <div className="donut-header">
         <h3>Distribución de Fallas</h3>
         <p>Proporción entre Errores Visuales y Retrabajo en QA</p>
+        {canShowBreakdown && <p className="donut-hint">Pasa el mouse sobre una categoría para ver quién la tiene</p>}
       </div>
 
       <div className="donut-content">
@@ -65,7 +86,7 @@ export function BugCategoriesDonut({ kpis }: DonutProps) {
                   transform={`rotate(${rotation} ${center} ${center})`}
                   style={{
                     transition: 'stroke-width 0.2s ease, stroke 0.2s ease, stroke-dashoffset 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
-                    cursor: 'pointer'
+                    cursor: canShowBreakdown ? 'pointer' : 'default'
                   }}
                   onMouseEnter={() => setHoveredSlice(index)}
                   onMouseLeave={() => setHoveredSlice(null)}
@@ -87,6 +108,27 @@ export function BugCategoriesDonut({ kpis }: DonutProps) {
               </>
             )}
           </div>
+
+          {hoveredSlice !== null && canShowBreakdown && (
+            <div className="donut-tooltip">
+              <div className="tooltip-header">
+                <span className="tooltip-dot" style={{ backgroundColor: categories[hoveredSlice].color }} />
+                {categories[hoveredSlice].name}
+              </div>
+              <div className="tooltip-body">
+                {tooltipRows.length === 0 ? (
+                  <span className="tooltip-empty">Nadie registra esta incidencia.</span>
+                ) : (
+                  tooltipRows.map((dev) => (
+                    <div key={dev.id} className="tooltip-row">
+                      <span>{dev.name}</span>
+                      <strong>{dev.value}</strong>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Legend */}
@@ -130,6 +172,12 @@ export function BugCategoriesDonut({ kpis }: DonutProps) {
         .donut-header p {
           font-size: 0.78rem;
           color: var(--text-secondary);
+        }
+
+        .donut-hint {
+          font-size: 0.68rem !important;
+          color: var(--color-primary) !important;
+          margin-top: 2px;
         }
 
         .donut-content {
@@ -246,6 +294,81 @@ export function BugCategoriesDonut({ kpis }: DonutProps) {
         .legend-percent {
           color: var(--text-muted);
           font-size: 0.7rem;
+        }
+
+        .donut-tooltip {
+          position: absolute;
+          top: calc(100% + 10px);
+          left: 50%;
+          transform: translateX(-50%);
+          width: max-content;
+          max-width: 220px;
+          padding: 10px 12px;
+          border-radius: var(--radius-sm);
+          border: 1px solid var(--border-color);
+          background: var(--bg-elevated);
+          box-shadow: var(--shadow-lg);
+          z-index: 50;
+          pointer-events: none;
+          animation: tooltipFade 0.15s ease-out;
+        }
+
+        @keyframes tooltipFade {
+          from { opacity: 0; transform: translateX(-50%) translateY(-4px); }
+          to { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .donut-tooltip {
+            animation: none;
+          }
+        }
+
+        .tooltip-header {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 0.74rem;
+          font-weight: 700;
+          color: var(--text-primary);
+          margin-bottom: 6px;
+          padding-bottom: 6px;
+          border-bottom: 1px solid var(--border-color);
+          white-space: nowrap;
+        }
+
+        .tooltip-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 2px;
+          flex-shrink: 0;
+        }
+
+        .tooltip-body {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          max-height: 140px;
+          overflow-y: auto;
+        }
+
+        .tooltip-row {
+          display: flex;
+          justify-content: space-between;
+          gap: 10px;
+          font-size: 0.72rem;
+          color: var(--text-secondary);
+          white-space: nowrap;
+        }
+
+        .tooltip-row strong {
+          color: var(--color-primary);
+        }
+
+        .tooltip-empty {
+          font-size: 0.72rem;
+          color: var(--text-muted);
+          white-space: normal;
         }
       `}</style>
     </div>
