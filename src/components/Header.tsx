@@ -1,27 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { supabase } from '@/lib/supabase/client';
+import { useDashboardData } from '@/contexts/DashboardDataContext';
 
-interface DeveloperItem {
-  id: string;
-  name: string;
-}
-
-interface HeaderProps {
-  currentTab: string;
-  selectedDeveloper: string;
-  setSelectedDeveloper: (developer: string) => void;
-  developers: DeveloperItem[];
-}
-
-export default function Header({
-  currentTab,
-  selectedDeveloper,
-  setSelectedDeveloper,
-  developers
-}: HeaderProps) {
+export default function Header() {
+  const pathname = usePathname();
+  const { selectedDeveloper, setSelectedDeveloper, developersDropdown: developers } = useDashboardData();
   const { profile, signOut, user, refreshProfile } = useAuth();
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
@@ -96,16 +83,16 @@ export default function Header({
   };
 
   const getTitle = () => {
-    switch (currentTab) {
-      case 'overview':
+    switch (pathname) {
+      case '/':
         return 'Evaluación de Desarrolladores No-Code';
-      case 'metrics':
+      case '/historial':
         return 'Historial de Auditorías';
-      case 'validator':
+      case '/calificar':
         return 'Calificar Desarrollador (Nueva Auditoría)';
-      case 'developers':
+      case '/perfiles':
         return 'Perfiles Técnicos Individuales';
-      case 'admin':
+      case '/admin':
         return 'Administración';
       default:
         return 'Evaluación NoCodeQA';
@@ -113,16 +100,16 @@ export default function Header({
   };
 
   const getSubtitle = () => {
-    switch (currentTab) {
-      case 'overview':
+    switch (pathname) {
+      case '/':
         return 'Control de desempeño, tasas de aprobación técnica y clasificación de bugs del equipo de desarrollo.';
-      case 'metrics':
+      case '/historial':
         return 'Registro completo y auditoría cronológica de tareas revisadas.';
-      case 'validator':
+      case '/calificar':
         return 'Evalúa los lineamientos técnicos de un entregable y calcula la calificación del desarrollador.';
-      case 'developers':
+      case '/perfiles':
         return 'Análisis detallado de aptitudes y evolución técnica por programador.';
-      case 'admin':
+      case '/admin':
         return 'Configura usuarios, proyectos y asignaciones de equipo.';
       default:
         return 'Métricas de calidad y desempeño.';
@@ -130,8 +117,8 @@ export default function Header({
   };
 
   const getTabIcon = () => {
-    switch (currentTab) {
-      case 'overview':
+    switch (pathname) {
+      case '/':
         return (
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <rect width="7" height="9" x="3" y="3" rx="1" />
@@ -140,7 +127,7 @@ export default function Header({
             <rect width="7" height="5" x="3" y="16" rx="1" />
           </svg>
         );
-      case 'metrics':
+      case '/historial':
         return (
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="18" x2="18" y1="20" y2="10" />
@@ -148,14 +135,14 @@ export default function Header({
             <line x1="6" x2="6" y1="20" y2="14" />
           </svg>
         );
-      case 'validator':
+      case '/calificar':
         return (
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="m9 12 2 2 4-4" />
             <path d="M5 7a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z" />
           </svg>
         );
-      case 'developers':
+      case '/perfiles':
         return (
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
@@ -179,7 +166,7 @@ export default function Header({
       <div className="header-titles">
         <span className="header-tab-icon">{getTabIcon()}</span>
         <div>
-          {currentTab === 'overview' && (
+          {pathname === '/' && (
             <p className="header-welcome">Bienvenido, {profile?.full_name || profile?.username || 'Usuario'}</p>
           )}
           <h1>{getTitle()}</h1>

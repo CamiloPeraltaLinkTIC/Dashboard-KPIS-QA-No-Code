@@ -1,16 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 
-interface SidebarProps {
-  currentTab: string;
-  setCurrentTab: (tab: string) => void;
-}
-
-export default function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
+export default function Sidebar() {
   const { profile } = useAuth();
   const role = profile?.role || 'QA';
+  const pathname = usePathname();
 
   // El aleteo del logo usa animación SVG nativa (animateTransform) en vez de
   // CSS: transform-box/transform-origin en SVG es inconsistente entre
@@ -28,6 +26,7 @@ export default function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
   const allMenuItems = [
     {
       id: 'overview',
+      href: '/',
       label: 'Panel General',
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -40,6 +39,7 @@ export default function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
     },
     {
       id: 'metrics',
+      href: '/historial',
       label: 'Historial de Auditorías',
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -51,6 +51,7 @@ export default function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
     },
     {
       id: 'validator',
+      href: '/calificar',
       label: 'Calificar Desarrollador',
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -62,6 +63,7 @@ export default function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
 
     {
       id: 'developers',
+      href: '/perfiles',
       label: 'Perfiles Técnicos',
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -74,6 +76,7 @@ export default function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
     },
     {
       id: 'admin',
+      href: '/admin',
       label: 'Administración',
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -176,11 +179,11 @@ export default function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
 
       <nav className="sidebar-nav">
         {menuItems.map((item) => {
-          const isActive = currentTab === item.id;
+          const isActive = pathname === item.href;
           return (
-            <button
+            <Link
               key={item.id}
-              onClick={() => setCurrentTab(item.id)}
+              href={item.href}
               className={`nav-item ${isActive ? 'active' : ''}`}
             >
               <span className={`nav-icon-box ${isActive ? 'active-icon' : ''}`}>
@@ -188,7 +191,7 @@ export default function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
               </span>
               <span className="nav-label">{item.label}</span>
               <div className={`active-indicator ${isActive ? 'is-active' : ''}`} />
-            </button>
+            </Link>
           );
         })}
       </nav>
@@ -267,7 +270,12 @@ export default function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
           flex: 1;
         }
 
-        .nav-item {
+        /* :global() en todo lo de acá abajo: son hijos de <Link> (next/link),
+           un componente ajeno — styled-jsx no logra inyectar el atributo de
+           scope dentro de lo que Link termina renderizando, así que estas
+           reglas quedaban huérfanas (el <a> salía sin ningún estilo nuestro,
+           solo el subrayado azul por defecto del navegador). */
+        :global(.nav-item) {
           display: flex;
           align-items: center;
           gap: 12px;
@@ -275,6 +283,7 @@ export default function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
           border: none;
           background: transparent;
           color: var(--text-secondary);
+          text-decoration: none;
           border-radius: var(--radius-sm);
           font-size: 0.9rem;
           font-weight: 500;
@@ -284,22 +293,22 @@ export default function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
           transition: background-color 0.2s ease, color 0.2s ease;
         }
 
-        .nav-item:hover {
+        :global(.nav-item:hover) {
           color: var(--text-primary);
           background: rgba(255, 255, 255, 0.03);
         }
 
-        [data-theme="light"] .nav-item:hover {
+        :global([data-theme="light"] .nav-item:hover) {
           background: rgba(0, 0, 0, 0.03);
         }
 
-        .nav-item.active {
+        :global(.nav-item.active) {
           color: var(--text-primary);
           background: var(--color-primary-glow);
           font-weight: 600;
         }
 
-        .nav-icon-box {
+        :global(.nav-icon-box) {
           display: flex;
           align-items: center;
           justify-content: center;
@@ -313,25 +322,25 @@ export default function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
           transition: background 0.25s ease, border-color 0.25s ease, color 0.25s ease, transform 0.2s ease, box-shadow 0.25s ease;
         }
 
-        .nav-item:hover .nav-icon-box {
+        :global(.nav-item:hover .nav-icon-box) {
           background: var(--color-primary-glow);
           border-color: var(--color-primary);
           color: var(--color-primary);
           transform: scale(1.05);
         }
 
-        .nav-icon-box.active-icon {
+        :global(.nav-icon-box.active-icon) {
           background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
           border-color: transparent;
           color: white;
           box-shadow: var(--shadow-glow);
         }
 
-        .nav-item.active:hover .nav-icon-box {
+        :global(.nav-item.active:hover .nav-icon-box) {
           transform: scale(1.05);
         }
 
-        .active-indicator {
+        :global(.active-indicator) {
           position: absolute;
           left: 0;
           top: 25%;
@@ -346,9 +355,15 @@ export default function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
           transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s ease;
         }
 
-        .active-indicator.is-active {
+        :global(.active-indicator.is-active) {
           transform: scaleY(1);
           opacity: 1;
+        }
+
+        :global(.nav-label) {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
 
         .sidebar-footer {
