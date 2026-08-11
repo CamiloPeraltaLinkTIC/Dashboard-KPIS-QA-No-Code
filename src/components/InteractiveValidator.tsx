@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { DeveloperReview } from '../data/mockData';
 import { useAuth } from '@/components/AuthProvider';
+import { calculateReviewScore, deriveReviewStatus } from '@/lib/scoring';
 
 interface DeveloperDropdownItem {
   id: string;
@@ -123,11 +124,7 @@ export default function InteractiveValidator({ onAddReview, developers, projects
   };
 
   // El score se calcula a partir de los KPIs: promedio de los porcentajes menos penalizaciones
-  const calculateScore = () => {
-    const baseScore = Math.round((pixelPerfect + cumplimientoDod + calidadVisual) / 3);
-    const scoreDeduction = (erroresVisuales * 2) + (retrabajo * 5);
-    return Math.max(0, baseScore - scoreDeduction);
-  };
+  const calculateScore = () => calculateReviewScore({ pixelPerfect, cumplimientoDod, calidadVisual, erroresVisuales, retrabajo });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,12 +139,7 @@ export default function InteractiveValidator({ onAddReview, developers, projects
 
     const qaAnalyst = profile?.username || 'QA';
     const finalScore = calculateScore();
-    let status: 'approved' | 'rejected' | 'in_review' = 'in_review';
-    if (finalScore >= 85) {
-      status = 'approved';
-    } else if (finalScore < 75) {
-      status = 'rejected';
-    }
+    const status = deriveReviewStatus(finalScore);
 
     const newReview: DeveloperReview = {
       id: `REV-2026-${Math.floor(100 + Math.random() * 900)}`,

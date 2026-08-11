@@ -6,6 +6,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { supabase } from '@/lib/supabase/client';
 import { deleteKpiReview } from '@/app/actions/admin';
 import { DeveloperStat, DeveloperReview } from '@/data/mockData';
+import { computeDevAggregates, linkRetests, computeHeroBreakdown } from '@/lib/reviewAggregates';
 
 type ReopenContext = {
   parentReviewId: string;
@@ -152,21 +153,7 @@ export function DashboardDataProvider({ children }: { children: React.ReactNode 
             qaAnalyst: (k.qa as any)?.username || 'QA'
           }));
 
-          const totalTasks = reviews.length;
-          // No cuenta como "primer intento" si viene de un reintento (reabrir historial).
-          const approvedFirstTry = reviews.filter(r => r.status === 'approved' && !r.parentReviewId).length;
-          const complianceRate = totalTasks > 0 ? Math.round(reviews.reduce((sum, r) => sum + r.score, 0) / totalTasks) : 100;
-
-          const kpisTotal = {
-            pixelPerfect: totalTasks > 0 ? Math.round(reviews.reduce((sum, r) => sum + r.kpis.pixelPerfect, 0) / totalTasks) : 100,
-            cumplimientoDod: totalTasks > 0 ? Math.round(reviews.reduce((sum, r) => sum + r.kpis.cumplimientoDod, 0) / totalTasks) : 100,
-            calidadVisual: totalTasks > 0 ? Math.round(reviews.reduce((sum, r) => sum + r.kpis.calidadVisual, 0) / totalTasks) : 100,
-            erroresVisuales: reviews.reduce((sum, r) => sum + r.kpis.erroresVisuales, 0),
-            // El total no suma el valor de retrabajo de cada fila (que escala
-            // con la profundidad de la cadena: 1, 2, 3...), sino que cuenta
-            // cuántas veces se reabrió algo (cuántas filas tienen parentReviewId).
-            retrabajo: reviews.filter((r) => !!r.parentReviewId).length,
-          };
+          const { totalTasks, approvedFirstTry, complianceRate, kpisTotal } = computeDevAggregates(reviews);
 
           // Competencias derivadas de los KPIs reales (antes eran valores fijos)
           const erroresPenalty = totalTasks > 0
@@ -225,27 +212,6 @@ export function DashboardDataProvider({ children }: { children: React.ReactNode 
       clearInterval(intervalId);
     };
   }, [profile]);
-
-  // Recalcula los agregados de un desarrollador a partir de su lista de reviews
-  // (usado tras agregar o eliminar una calificación, para actualizar el estado
-  // local sin esperar al próximo refresco automático).
-  const computeDevAggregates = (reviews: DeveloperReview[]) => {
-    const totalTasks = reviews.length;
-    // No cuenta como "primer intento" si viene de un reintento (reabrir historial).
-    const approvedFirstTry = reviews.filter((r) => r.status === 'approved' && !r.parentReviewId).length;
-    const complianceRate = totalTasks > 0 ? Math.round(reviews.reduce((sum, r) => sum + r.score, 0) / totalTasks) : 100;
-
-    const kpisTotal = {
-      pixelPerfect: totalTasks > 0 ? Math.round(reviews.reduce((sum, r) => sum + r.kpis.pixelPerfect, 0) / totalTasks) : 100,
-      cumplimientoDod: totalTasks > 0 ? Math.round(reviews.reduce((sum, r) => sum + r.kpis.cumplimientoDod, 0) / totalTasks) : 100,
-      calidadVisual: totalTasks > 0 ? Math.round(reviews.reduce((sum, r) => sum + r.kpis.calidadVisual, 0) / totalTasks) : 100,
-      erroresVisuales: reviews.reduce((sum, r) => sum + r.kpis.erroresVisuales, 0),
-      // Cuenta reaperturas, no la suma de valores de retrabajo (ver comentario en el fetch inicial).
-      retrabajo: reviews.filter((r) => !!r.parentReviewId).length,
-    };
-
-    return { totalTasks, approvedFirstTry, complianceRate, kpisTotal };
-  };
 
   const handleAddReview = async (devId: string, projectId: string, newReview: DeveloperReview, parentReviewId?: string) => {
     // Attempt to save to Supabase
@@ -355,20 +321,7 @@ export function DashboardDataProvider({ children }: { children: React.ReactNode 
 
     // Vincula cada revisión con su reintento/original (reabrir historial) para
     // mostrar ambos puntajes juntos en el detalle, sin afectar los agregados.
-    // Van en dos campos separados (retestOf / retestedBy) porque una revisión
-    // "de en medio" de la cadena puede ser ambas cosas a la vez.
-    const byId = new Map(list.map((r) => [r.id, r]));
-    list.forEach((r) => {
-      if (r.parentReviewId) {
-        const parent = byId.get(r.parentReviewId);
-        if (parent) {
-          r.retestOf = { id: parent.id, reviewCode: parent.reviewCode, score: parent.score, date: parent.date };
-          parent.retestedBy = { id: r.id, reviewCode: r.reviewCode, score: r.score, date: r.date };
-        }
-      }
-    });
-
-    return list;
+    return linkRetests(list);
   }, [developers]);
 
   // Filter reviews by selected developer name
@@ -451,21 +404,7 @@ export function DashboardDataProvider({ children }: { children: React.ReactNode 
     return Math.round(developers.reduce((sum, d) => sum + d.complianceRate, 0) / developers.length);
   }, [developers, selectedDeveloper, selectedDeveloperData]);
 
-  const heroBreakdown = useMemo(() => {
-    // Una revisión "En Revisión" o "Rechazada" que ya fue reabierta y resuelta
-    // con un reintento no debe seguir contando como pendiente para siempre.
-    // Pero una revisión "Aprobada" sí sigue contando como aprobada aunque
-    // después se haya reabierto otra vez (por ejemplo, para un ajuste
-    // adicional) — aprobar es un resultado válido que no queda "obsoleto".
-    // El total, en cambio, cuenta cada evaluación realizada (incluidas las
-    // reabiertas), porque representa el trabajo real de QA, no el estado
-    // actual de cada tarea.
-    const current = filteredReviews.filter((r) => r.status === 'approved' || !r.retestedBy);
-    const approved = current.filter((r) => r.status === 'approved').length;
-    const inReview = current.filter((r) => r.status === 'in_review').length;
-    const rejected = current.filter((r) => r.status === 'rejected').length;
-    return { approved, inReview, rejected, total: filteredReviews.length };
-  }, [filteredReviews]);
+  const heroBreakdown = useMemo(() => computeHeroBreakdown(filteredReviews), [filteredReviews]);
 
   // Dropdown list
   const developersDropdown = useMemo(() => {

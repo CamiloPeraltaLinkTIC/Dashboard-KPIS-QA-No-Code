@@ -99,6 +99,13 @@ export default function Header() {
     }
   };
 
+  // Título de la pestaña del navegador por ruta (las páginas son componentes
+  // cliente, así que no pueden usar `export const metadata` de Next.js).
+  useEffect(() => {
+    document.title = `${getTitle()} | NoCodeQA`;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+
   const getSubtitle = () => {
     switch (pathname) {
       case '/':
