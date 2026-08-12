@@ -89,12 +89,15 @@ export default function Sidebar() {
 
   const menuItems = allMenuItems.filter(item => {
     const isDev = role === 'dev' || role === 'Developer';
-    const isAdmin = role === 'admin' || role === 'Administrator';
+    // is_admin es una bandera de capacidad independiente del rol funcional:
+    // alguien puede ser dev (evaluable por QA) y además administrador de la
+    // herramienta a la vez, en cuyo caso ve todo igual que un admin puro.
+    const hasAdminAccess = !!profile?.is_admin || role === 'admin' || role === 'Administrator';
 
-    if (isDev && (item.id === 'validator' || item.id === 'developers' || item.id === 'admin')) {
+    if (isDev && !hasAdminAccess && (item.id === 'validator' || item.id === 'developers' || item.id === 'admin')) {
       return false;
     }
-    if (!isAdmin && item.id === 'admin') {
+    if (!hasAdminAccess && item.id === 'admin') {
       return false;
     }
     return true;

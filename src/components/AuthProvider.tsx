@@ -12,6 +12,7 @@ type Profile = {
   username: string;
   full_name?: string;
   avatar_url?: string;
+  is_admin?: boolean;
 };
 
 type AuthContextType = {
@@ -153,9 +154,111 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   return (
     <>
       {loading ? (
-        // Loading session: blank or simple spinner
-        <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-app)', color: 'var(--text-primary)' }}>
-          Cargando sesión...
+        <div className="session-loading">
+          <div className="session-loading-aurora aurora-1" />
+          <div className="session-loading-aurora aurora-2" />
+
+          <div className="session-loading-content">
+            <div className="session-loading-badge">
+              <span className="session-loading-spinner" />
+            </div>
+            <p className="session-loading-title">NoCode<span className="text-gradient">QA</span></p>
+            <p className="session-loading-subtitle">Cargando sesión...</p>
+          </div>
+
+          <style jsx>{`
+            .session-loading {
+              position: relative;
+              height: 100vh;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              background: var(--bg-app);
+              overflow: hidden;
+            }
+
+            .session-loading-aurora {
+              position: absolute;
+              width: 560px;
+              height: 560px;
+              border-radius: 50%;
+              filter: blur(90px);
+              opacity: 0.45;
+            }
+
+            .aurora-1 {
+              top: -12%;
+              left: -8%;
+              background: radial-gradient(circle, hsla(263, 85%, 64%, 0.55), transparent 70%);
+            }
+
+            .aurora-2 {
+              bottom: -16%;
+              right: -10%;
+              background: radial-gradient(circle, hsla(190, 90%, 50%, 0.5), transparent 70%);
+            }
+
+            .session-loading-content {
+              position: relative;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              text-align: center;
+            }
+
+            .session-loading-badge {
+              width: 56px;
+              height: 56px;
+              border-radius: var(--radius-md);
+              background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              margin-bottom: 18px;
+              box-shadow: 0 0 32px hsla(263, 85%, 64%, 0.4);
+            }
+
+            .session-loading-spinner {
+              width: 22px;
+              height: 22px;
+              border-radius: 50%;
+              border: 2.5px solid rgba(255, 255, 255, 0.35);
+              border-top-color: white;
+              animation: session-spin 0.8s linear infinite;
+            }
+
+            .session-loading-title {
+              font-family: var(--font-display);
+              font-size: 1.4rem;
+              font-weight: 700;
+              letter-spacing: -0.01em;
+              color: var(--text-primary);
+              margin: 0;
+            }
+
+            .text-gradient {
+              background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+              -webkit-background-clip: text;
+              background-clip: text;
+              color: transparent;
+            }
+
+            .session-loading-subtitle {
+              font-size: 0.85rem;
+              color: var(--text-muted);
+              margin: 6px 0 0;
+            }
+
+            @keyframes session-spin {
+              to { transform: rotate(360deg); }
+            }
+
+            @media (prefers-reduced-motion: reduce) {
+              .session-loading-spinner {
+                animation: none;
+              }
+            }
+          `}</style>
         </div>
       ) : !user ? (
         // Not logged in: show Login UI instead of children

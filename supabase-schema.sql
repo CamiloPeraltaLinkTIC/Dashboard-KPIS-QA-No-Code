@@ -17,6 +17,19 @@ alter table public.nocode_profiles
 alter table public.nocode_profiles drop constraint if exists nocode_profiles_role_check;
 alter table public.nocode_profiles add constraint nocode_profiles_role_check check (role in ('QA', 'dev', 'leader', 'admin', 'Administrator'));
 
+-- "role" (QA/dev/leader) es el rol FUNCIONAL: qué tipo de trabajo hace la
+-- persona (a quién califican, a quién puede calificar, etc). "is_admin" es
+-- una bandera de CAPACIDAD, independiente del rol funcional: quién puede
+-- entrar al Panel de Administración. Separarlas permite que alguien sea a
+-- la vez developer (rol=dev, evaluable por QA, aparece en el leaderboard) y
+-- administrador de la herramienta (is_admin=true), sin tener que "fingir"
+-- un rol admin que lo sacaría de las listas de desarrolladores.
+alter table public.nocode_profiles add column if not exists is_admin boolean not null default false;
+
+-- Backfill: las cuentas que hasta ahora usaban role='admin'/'Administrator'
+-- como único mecanismo de administración conservan su acceso.
+update public.nocode_profiles set is_admin = true where role in ('admin', 'Administrator') and is_admin = false;
+
 -- Function to get current user's role securely bypassing RLS
 create or replace function public.get_auth_user_role()
 returns text as $$
@@ -25,6 +38,17 @@ declare
 begin
   select role into user_role from public.nocode_profiles where id = auth.uid();
   return user_role;
+end;
+$$ language plpgsql security definer;
+
+-- Igual patrón que get_auth_user_role(), pero para la bandera is_admin.
+create or replace function public.is_auth_user_admin()
+returns boolean as $$
+declare
+  admin_flag boolean;
+begin
+  select is_admin into admin_flag from public.nocode_profiles where id = auth.uid();
+  return coalesce(admin_flag, false);
 end;
 $$ language plpgsql security definer;
 
@@ -51,7 +75,7 @@ create policy "QAs can view their assigned devs."
 
 create policy "Leaders and admins can view all profiles."
   on public.nocode_profiles for select
-  using ( public.get_auth_user_role() in ('leader', 'admin', 'Administrator') );
+  using ( public.get_auth_user_role() = 'leader' or public.is_auth_user_admin() );
 
 create policy "Users can update their own nocode profile."
   on public.nocode_profiles for update
@@ -63,7 +87,7 @@ create policy "Users can insert their own nocode profile."
 
 create policy "Admins can insert and update any profile."
   on public.nocode_profiles for all
-  using ( public.get_auth_user_role() in ('admin', 'Administrator') );
+  using ( public.is_auth_user_admin() );
 
 -- La política "Users can update their own nocode profile." solo restringe QUÉ FILA
 -- se puede tocar (auth.uid() = id), no QUÉ COLUMNAS. Sin este trigger, cualquier
@@ -79,8 +103,10 @@ begin
     return new;
   end if;
 
-  if (new.role is distinct from old.role or new.assigned_qa_id is distinct from old.assigned_qa_id)
-     and coalesce(public.get_auth_user_role(), '') not in ('admin', 'Administrator') then
+  if (new.role is distinct from old.role
+      or new.assigned_qa_id is distinct from old.assigned_qa_id
+      or new.is_admin is distinct from old.is_admin)
+     and not public.is_auth_user_admin() then
     raise exception 'No tienes permisos para modificar el rol o la asignación de QA.';
   end if;
 
@@ -140,31 +166,54 @@ create policy "Devs can view own, QA view assigned, Admin/Leader view all."
   to authenticated
   using (
     auth.uid() = developer_id OR
-    public.get_auth_user_role() in ('leader', 'admin', 'Administrator') OR
+    public.get_auth_user_role() = 'leader' OR
+    public.is_auth_user_admin() OR
     (
       public.get_auth_user_role() = 'QA' AND
       auth.uid() = (select assigned_qa_id from public.nocode_profiles p where p.id = public.nocode_kpis.developer_id)
     )
   );
 
+-- is_auth_user_admin() como bypass total: un admin (o dev+is_admin, como el
+-- caso de alguien que hace las dos cosas) puede calificar/reabrir sin estar
+-- limitado al vínculo assigned_qa_id, igual que ya puede ver todo.
 create policy "QA can insert nocode KPIs for assigned devs."
   on public.nocode_kpis for insert
   to authenticated
-  with check ( 
-    auth.uid() = qa_analyst_id AND
-    public.get_auth_user_role() = 'QA' AND
-    exists (
-      select 1 from public.nocode_profiles
-      where id = developer_id and assigned_qa_id = auth.uid()
+  with check (
+    public.is_auth_user_admin()
+    OR (
+      auth.uid() = qa_analyst_id AND
+      public.get_auth_user_role() = 'QA' AND
+      exists (
+        select 1 from public.nocode_profiles
+        where id = developer_id and assigned_qa_id = auth.uid()
+      )
     )
   );
 
+-- Antes solo tenía USING (qué fila se puede tocar), sin WITH CHECK (qué
+-- valores puede tomar esa fila). Un QA podía UPDATE su propia fila y
+-- reasignarle un developer_id que no le correspondía, o cambiar
+-- qa_analyst_id a otro QA (suplantación). El WITH CHECK exige que, tras el
+-- update, la fila siga cumpliendo la misma validación que el INSERT.
 create policy "QA can update nocode KPIs."
   on public.nocode_kpis for update
   to authenticated
   using (
-    auth.uid() = qa_analyst_id AND
-    public.get_auth_user_role() = 'QA'
+    public.is_auth_user_admin()
+    OR (auth.uid() = qa_analyst_id AND public.get_auth_user_role() = 'QA')
+  )
+  with check (
+    public.is_auth_user_admin()
+    OR (
+      auth.uid() = qa_analyst_id AND
+      public.get_auth_user_role() = 'QA' AND
+      exists (
+        select 1 from public.nocode_profiles
+        where id = developer_id and assigned_qa_id = auth.uid()
+      )
+    )
   );
 
 -- Función SECURITY DEFINER (igual patrón que get_auth_user_role): al bypasear RLS
@@ -189,29 +238,31 @@ create policy "Devs can view QAs who evaluated them."
   using ( public.is_qa_of_current_dev(id) );
 
 
--- Function to handle new user signup and create profile
-create or replace function public.handle_nocode_new_user() 
+-- Function to handle new user signup and create profile.
+-- Todo perfil nuevo entra con rol 'dev' por defecto, sin excepciones: antes
+-- había una regla que le daba 'admin' automático a cualquier correo que
+-- empezara/contuviera "admin" (ej. administrador@gmail.com) — con el login
+-- abierto a Google, eso era un backdoor real de escalación de privilegios.
+-- Un admin real ahora tiene que subirle el rol a mano desde "Editar Usuario".
+create or replace function public.handle_nocode_new_user()
 returns trigger as $$
 declare
-  default_role text;
+  derived_username text := split_part(new.email, '@', 1);
 begin
-  if new.email = 'admin@yopmail.com' or new.email ilike 'admin%' or new.email ilike '%.admin%' or new.email ilike '%_admin%' then
-    default_role := 'admin';
-  else
-    default_role := 'dev';
-  end if;
-
-  insert into public.nocode_profiles (id, email, username, role)
+  insert into public.nocode_profiles (id, email, username, full_name, role)
   values (
-    new.id, 
+    new.id,
     new.email,
-    split_part(new.email, '@', 1),
-    default_role
+    derived_username,
+    -- "cristian.sabogal" -> "Cristian Sabogal": sin nombre de Google que usar
+    -- (OAuth no siempre lo entrega), se deriva del correo como mejor esfuerzo.
+    initcap(regexp_replace(derived_username, '[._]+', ' ', 'g')),
+    'dev'
   ) on conflict (id) do nothing; -- idempotency for inserts just in case
-  
+
   return new;
 end;
-$$ language plpgsql security definer;
+$$ language plpgsql security definer set search_path = public;
 
 -- Trigger to automatically create a profile for new users
 drop trigger if exists on_auth_user_created_nocode on auth.users;
@@ -240,7 +291,7 @@ create policy "Anyone can view projects." on public.nocode_projects
   for select to authenticated using (true);
 
 create policy "Admins can manage projects." on public.nocode_projects
-  for all using ( public.get_auth_user_role() in ('admin', 'Administrator') );
+  for all using ( public.is_auth_user_admin() );
 
 
 -- Create Assignments Table
@@ -264,7 +315,7 @@ create policy "Anyone can view assignments." on public.nocode_project_assignment
   for select to authenticated using (true);
 
 create policy "Admins can manage assignments." on public.nocode_project_assignments
-  for all using ( public.get_auth_user_role() in ('admin', 'Administrator') );
+  for all using ( public.is_auth_user_admin() );
 
 
 -- Add project_id to nocode_kpis

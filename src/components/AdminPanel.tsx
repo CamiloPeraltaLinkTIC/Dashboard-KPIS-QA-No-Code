@@ -1,49 +1,15 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import ExcelJS from 'exceljs';
 import { supabase } from '@/lib/supabase/client';
 import {
-  createNewUser,
   updateUser,
   deleteUser,
   createProject,
   deleteProject,
   createAssignment,
-  deleteAssignment,
-  bulkCreateUsers
+  deleteAssignment
 } from '@/app/actions/admin';
-
-const ALLOWED_ROLES = ['dev', 'QA', 'leader', 'admin'];
-
-// Normaliza variantes comunes en español/mayúsculas al valor exacto que espera la BD.
-function normalizeRole(raw: string): string {
-  const lower = raw.trim().toLowerCase();
-  if (lower === 'dev' || lower === 'desarrollador') return 'dev';
-  if (lower === 'qa' || lower === 'analista qa') return 'QA';
-  if (lower === 'leader' || lower === 'líder' || lower === 'lider') return 'leader';
-  if (lower === 'admin' || lower === 'administrador') return 'admin';
-  return raw.trim();
-}
-
-type BulkRowPreview = {
-  username: string;
-  fullName: string;
-  password: string;
-  role: string;
-  assignedQaUsername: string;
-  valid: boolean;
-  error?: string;
-};
-
-type BulkResult = {
-  row: number;
-  username: string;
-  success: boolean;
-  message?: string;
-  error?: string;
-  generatedPassword?: string;
-};
 
 type QAProfile = {
   id: string;
@@ -57,6 +23,7 @@ type ProfileItem = {
   role: string;
   full_name?: string;
   assigned_qa_id?: string;
+  is_admin?: boolean;
 };
 
 type ProjectItem = {
@@ -85,6 +52,11 @@ export default function AdminPanel() {
   
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{ message: string; onConfirm: () => void } | null>(null);
+
+  const requestConfirm = (message: string, onConfirm: () => void) => {
+    setConfirmDialog({ message, onConfirm });
+  };
   
   // Search state
   const [searchTerm, setSearchTerm] = useState('');
@@ -92,11 +64,10 @@ export default function AdminPanel() {
   // Form states
   const [editingUser, setEditingUser] = useState<ProfileItem | null>(null);
   const [userFormData, setUserFormData] = useState({
-    username: '',
     fullName: '',
-    password: '',
     role: 'dev',
-    assignedQaId: ''
+    assignedQaId: '',
+    isAdmin: false
   });
 
   const [projectFormData, setProjectFormData] = useState({
@@ -107,15 +78,8 @@ export default function AdminPanel() {
   const [assignmentFormData, setAssignmentFormData] = useState({
     developerId: '',
     qaId: '',
-    projectId: ''
+    projectIds: [] as string[]
   });
-
-  // Carga masiva de usuarios por Excel
-  const [bulkModalOpen, setBulkModalOpen] = useState(false);
-  const [bulkRows, setBulkRows] = useState<BulkRowPreview[]>([]);
-  const [bulkError, setBulkError] = useState<string | null>(null);
-  const [bulkResults, setBulkResults] = useState<BulkResult[] | null>(null);
-  const [bulkLoading, setBulkLoading] = useState(false);
 
   const fetchData = async () => {
     // 1. Fetch QAs
@@ -182,32 +146,39 @@ export default function AdminPanel() {
     setAssignmentFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
+  const handleProjectCheckboxToggle = (projectId: string) => {
+    setAssignmentFormData(prev => ({
+      ...prev,
+      projectIds: prev.projectIds.includes(projectId)
+        ? prev.projectIds.filter(id => id !== projectId)
+        : [...prev.projectIds, projectId]
+    }));
+  };
+
   const handleEditUserClick = (user: ProfileItem) => {
     setEditingUser(user);
     setUserFormData({
-      username: user.username,
       fullName: user.full_name || '',
-      password: '',
       role: user.role,
-      assignedQaId: user.assigned_qa_id || ''
+      assignedQaId: user.assigned_qa_id || '',
+      isAdmin: user.is_admin || false
     });
     setMessage(null);
   };
 
   const handleCancelUserEdit = () => {
     setEditingUser(null);
-    setUserFormData({
-      username: '',
-      fullName: '',
-      password: '',
-      role: 'dev',
-      assignedQaId: ''
-    });
+    setUserFormData({ fullName: '', role: 'dev', assignedQaId: '', isAdmin: false });
     setMessage(null);
   };
 
+  // No hay "Crear Usuario": las cuentas se crean solas al iniciar sesión con
+  // Google (entran con rol 'dev' por defecto). Este formulario solo ajusta
+  // el rol y la asignación de QA de alguien que ya inició sesión al menos
+  // una vez, por eso solo aparece cuando hay un usuario en edición.
   const handleUserSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!editingUser) return;
     setLoading(true);
     setMessage(null);
 
@@ -215,35 +186,23 @@ export default function AdminPanel() {
       const { data: { session } } = await supabase.auth.getSession();
       const form = new FormData();
       form.append('accessToken', session?.access_token || '');
-      form.append('username', userFormData.username);
+      form.append('userId', editingUser.id);
       form.append('fullName', userFormData.fullName);
-      form.append('password', userFormData.password);
       form.append('role', userFormData.role);
-      
+      form.append('isAdmin', String(userFormData.isAdmin));
+
       if (userFormData.role === 'dev' && userFormData.assignedQaId) {
         form.append('assignedQaId', userFormData.assignedQaId);
       }
 
-      if (editingUser) {
-        form.append('userId', editingUser.id);
-        const result = await updateUser(form);
-        if (result.success) {
-          setMessage({ type: 'success', text: result.message! });
-          setEditingUser(null);
-          setUserFormData({ username: '', fullName: '', password: '', role: 'dev', assignedQaId: '' });
-          await fetchData();
-        } else {
-          setMessage({ type: 'error', text: result.error! });
-        }
+      const result = await updateUser(form);
+      if (result.success) {
+        setMessage({ type: 'success', text: result.message! });
+        setEditingUser(null);
+        setUserFormData({ fullName: '', role: 'dev', assignedQaId: '', isAdmin: false });
+        await fetchData();
       } else {
-        const result = await createNewUser(form);
-        if (result.success) {
-          setMessage({ type: 'success', text: result.message! });
-          setUserFormData({ username: '', fullName: '', password: '', role: 'dev', assignedQaId: '' });
-          await fetchData();
-        } else {
-          setMessage({ type: 'error', text: result.error! });
-        }
+        setMessage({ type: 'error', text: result.error! });
       }
     } catch (err) {
       setMessage({ type: 'error', text: 'Error inesperado.' });
@@ -281,24 +240,46 @@ export default function AdminPanel() {
 
   const handleAssignmentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (assignmentFormData.projectIds.length === 0) {
+      setMessage({ type: 'error', text: 'Selecciona al menos un proyecto.' });
+      return;
+    }
     setLoading(true);
     setMessage(null);
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const form = new FormData();
-      form.append('accessToken', session?.access_token || '');
-      form.append('developerId', assignmentFormData.developerId);
-      form.append('qaId', assignmentFormData.qaId);
-      form.append('projectId', assignmentFormData.projectId);
+      const accessToken = session?.access_token || '';
 
-      const result = await createAssignment(form);
-      if (result.success) {
-        setMessage({ type: 'success', text: result.message! });
-        setAssignmentFormData({ developerId: '', qaId: '', projectId: '' });
+      // Un proyecto = una fila en nocode_project_assignments, así que se crea
+      // una asignación por proyecto seleccionado. createAssignment ya
+      // maneja el caso de duplicados (unique_dev_qa_project) sin romper el
+      // resto, así que se corren todas y se junta el resultado.
+      const results = await Promise.all(
+        assignmentFormData.projectIds.map(projectId => {
+          const form = new FormData();
+          form.append('accessToken', accessToken);
+          form.append('developerId', assignmentFormData.developerId);
+          form.append('qaId', assignmentFormData.qaId);
+          form.append('projectId', projectId);
+          return createAssignment(form);
+        })
+      );
+
+      const successCount = results.filter(r => r.success).length;
+      const errors = results.filter(r => !r.success).map(r => r.error).filter(Boolean);
+
+      if (successCount > 0) {
+        setMessage({
+          type: errors.length > 0 ? 'error' : 'success',
+          text: errors.length > 0
+            ? `${successCount} asignación(es) creada(s). Fallaron: ${errors.join(' ')}`
+            : `${successCount} asignación(es) creada(s) exitosamente.`
+        });
+        setAssignmentFormData({ developerId: '', qaId: '', projectIds: [] });
         await fetchData();
       } else {
-        setMessage({ type: 'error', text: result.error! });
+        setMessage({ type: 'error', text: errors.join(' ') || 'No se pudo crear ninguna asignación.' });
       }
     } catch (err) {
       setMessage({ type: 'error', text: 'Error inesperado.' });
@@ -307,187 +288,67 @@ export default function AdminPanel() {
     }
   };
 
-  const handleDeleteUser = async (user: ProfileItem) => {
-    if (!confirm(`¿Estás seguro de eliminar al usuario "${user.username}"? Esta acción no se puede deshacer.`)) return;
-    setLoading(true);
-    const { data: { session } } = await supabase.auth.getSession();
-    const result = await deleteUser(user.id, session?.access_token || '');
-    if (result.success) {
-      setMessage({ type: 'success', text: result.message! });
-      if (editingUser?.id === user.id) handleCancelUserEdit();
-      await fetchData();
-    } else {
-      setMessage({ type: 'error', text: result.error! });
-    }
-    setLoading(false);
-  };
-
-  const handleDeleteProj = async (id: string) => {
-    if (!confirm('¿Estás seguro de eliminar este proyecto? Se perderán las asignaciones relacionadas.')) return;
-    setLoading(true);
-    const { data: { session } } = await supabase.auth.getSession();
-    const result = await deleteProject(id, session?.access_token || '');
-    if (result.success) {
-      setMessage({ type: 'success', text: result.message! });
-      await fetchData();
-    } else {
-      setMessage({ type: 'error', text: result.error! });
-    }
-    setLoading(false);
-  };
-
-  const handleDeleteAssign = async (id: string) => {
-    if (!confirm('¿Estás seguro de eliminar esta asignación?')) return;
-    setLoading(true);
-    const { data: { session } } = await supabase.auth.getSession();
-    const result = await deleteAssignment(id, session?.access_token || '');
-    if (result.success) {
-      setMessage({ type: 'success', text: result.message! });
-      await fetchData();
-    } else {
-      setMessage({ type: 'error', text: result.error! });
-    }
-    setLoading(false);
-  };
-
-  const resetBulkState = () => {
-    setBulkRows([]);
-    setBulkError(null);
-    setBulkResults(null);
-  };
-
-  const handleOpenBulkModal = () => {
-    resetBulkState();
-    setBulkModalOpen(true);
-  };
-
-  const handleDownloadTemplate = async () => {
-    const workbook = new ExcelJS.Workbook();
-    const sheet = workbook.addWorksheet('Usuarios');
-    sheet.columns = [
-      { header: 'username', key: 'username', width: 22 },
-      { header: 'fullName', key: 'fullName', width: 26 },
-      { header: 'password', key: 'password', width: 18 },
-      { header: 'role', key: 'role', width: 14 },
-      { header: 'assignedQaUsername', key: 'assignedQaUsername', width: 22 }
-    ];
-    sheet.addRow({
-      username: 'juan.perez',
-      fullName: 'Juan Pérez',
-      password: '',
-      role: 'dev',
-      assignedQaUsername: qas[0]?.username || ''
-    });
-    const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'plantilla_usuarios.xlsx';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleBulkFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-
-    setBulkResults(null);
-    setBulkError(null);
-
-    try {
-      const buffer = await file.arrayBuffer();
-      const workbook = new ExcelJS.Workbook();
-      await workbook.xlsx.load(buffer);
-      const sheet = workbook.worksheets[0];
-      if (!sheet) {
-        setBulkError('El archivo no tiene hojas de cálculo.');
-        return;
-      }
-
-      const headers: string[] = [];
-      sheet.getRow(1).eachCell({ includeEmpty: false }, (cell, colNumber) => {
-        headers[colNumber] = String(cell.value ?? '').trim().toLowerCase();
-      });
-
-      const getCellText = (row: ExcelJS.Row, headerName: string): string => {
-        const colNumber = headers.indexOf(headerName);
-        if (colNumber === -1) return '';
-        const value = row.getCell(colNumber).value;
-        return value == null ? '' : String(value).trim();
-      };
-
-      const parsedRows: BulkRowPreview[] = [];
-      sheet.eachRow((row, rowNumber) => {
-        if (rowNumber === 1) return;
-
-        const username = getCellText(row, 'username');
-        const fullName = getCellText(row, 'fullname');
-        const password = getCellText(row, 'password') || getCellText(row, 'contraseña');
-        const roleRaw = getCellText(row, 'role') || getCellText(row, 'rol');
-        const assignedQaUsername = getCellText(row, 'assignedqausername') || getCellText(row, 'qa');
-
-        if (!username && !roleRaw) return; // fila vacía
-
-        const role = normalizeRole(roleRaw);
-        const valid = !!username && ALLOWED_ROLES.includes(role);
-
-        parsedRows.push({
-          username,
-          fullName,
-          password,
-          role,
-          assignedQaUsername,
-          valid,
-          error: !username ? 'Falta el nombre de usuario.' : !ALLOWED_ROLES.includes(role) ? `Rol inválido: "${roleRaw}"` : undefined
-        });
-      });
-
-      if (parsedRows.length === 0) {
-        setBulkError('No se encontraron filas con datos en el archivo.');
-        return;
-      }
-
-      setBulkRows(parsedRows);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'formato inválido.';
-      setBulkError('No se pudo leer el archivo: ' + message);
-    }
-  };
-
-  const handleConfirmBulkUpload = async () => {
-    const validRows = bulkRows.filter(r => r.valid);
-    if (validRows.length === 0) return;
-
-    setBulkLoading(true);
-    setBulkError(null);
-    try {
+  const handleDeleteUser = (user: ProfileItem) => {
+    requestConfirm(`¿Estás seguro de eliminar al usuario "${user.username}"? Esta acción no se puede deshacer.`, async () => {
+      setLoading(true);
       const { data: { session } } = await supabase.auth.getSession();
-      const result = await bulkCreateUsers(
-        validRows.map(r => ({
-          username: r.username,
-          fullName: r.fullName,
-          password: r.password,
-          role: r.role,
-          assignedQaUsername: r.assignedQaUsername
-        })),
-        session?.access_token || ''
-      );
-
+      const result = await deleteUser(user.id, session?.access_token || '');
       if (result.success) {
-        setBulkResults(result.results || []);
+        setMessage({ type: 'success', text: result.message! });
+        if (editingUser?.id === user.id) handleCancelUserEdit();
         await fetchData();
       } else {
-        setBulkError(result.error || 'Error al procesar la carga masiva.');
+        setMessage({ type: 'error', text: result.error! });
       }
-    } catch (err) {
-      setBulkError('Error inesperado: ' + (err instanceof Error ? err.message : ''));
-    } finally {
-      setBulkLoading(false);
-    }
+      setLoading(false);
+    });
+  };
+
+  const handleDeleteProj = (id: string) => {
+    requestConfirm('¿Estás seguro de eliminar este proyecto? Se perderán las asignaciones relacionadas.', async () => {
+      setLoading(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      const result = await deleteProject(id, session?.access_token || '');
+      if (result.success) {
+        setMessage({ type: 'success', text: result.message! });
+        await fetchData();
+      } else {
+        setMessage({ type: 'error', text: result.error! });
+      }
+      setLoading(false);
+    });
+  };
+
+  const handleDeleteAssign = (id: string) => {
+    requestConfirm('¿Estás seguro de eliminar esta asignación?', async () => {
+      setLoading(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      const result = await deleteAssignment(id, session?.access_token || '');
+      if (result.success) {
+        setMessage({ type: 'success', text: result.message! });
+        await fetchData();
+      } else {
+        setMessage({ type: 'error', text: result.error! });
+      }
+      setLoading(false);
+    });
+  };
+
+  const handleDeleteAssignmentGroup = (group: { devUsername?: string; qaUsername?: string; projects: { assignmentId: string }[] }) => {
+    requestConfirm(`¿Eliminar las ${group.projects.length} asignación(es) de ${group.devUsername} con ${group.qaUsername}?`, async () => {
+      setLoading(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token || '';
+      const results = await Promise.all(group.projects.map(p => deleteAssignment(p.assignmentId, accessToken)));
+      const errors = results.filter(r => !r.success).map(r => r.error).filter(Boolean);
+      setMessage(
+        errors.length > 0
+          ? { type: 'error', text: errors.join(' ') }
+          : { type: 'success', text: 'Asignaciones eliminadas exitosamente.' }
+      );
+      await fetchData();
+      setLoading(false);
+    });
   };
 
   // Filter lists based on search
@@ -502,10 +363,29 @@ export default function AdminPanel() {
     (pr.description || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const filteredAssignments = assignments.filter(a => 
+  const filteredAssignments = assignments.filter(a =>
     a.dev_username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     a.qa_username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     a.project_name?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Un dev+QA puede tener varios proyectos, cada uno como su propia fila en
+  // nocode_project_assignments. Se agrupan por (dev, qa) para que el nombre
+  // no se repita: una sola fila con todos sus proyectos como chips.
+  const groupedAssignments = Object.values(
+    filteredAssignments.reduce((acc, a) => {
+      const key = `${a.developer_id}-${a.qa_id}`;
+      if (!acc[key]) {
+        acc[key] = {
+          key,
+          devUsername: a.dev_username,
+          qaUsername: a.qa_username,
+          projects: [] as { assignmentId: string; projectName?: string }[]
+        };
+      }
+      acc[key].projects.push({ assignmentId: a.id, projectName: a.project_name });
+      return acc;
+    }, {} as Record<string, { key: string; devUsername?: string; qaUsername?: string; projects: { assignmentId: string; projectName?: string }[] }>)
   );
 
   const devs = profiles.filter(p => p.role === 'dev' || p.role === 'Developer');
@@ -544,116 +424,105 @@ export default function AdminPanel() {
         {/* ==================== TAB 1: USERS ==================== */}
         {subTab === 'users' && (
           <>
-            {/* Left Column: User Form */}
+            {/* Left Column: Edit User Form — no hay "Crear Usuario": las
+                cuentas se crean solas al iniciar sesión con Google (entran
+                como 'dev' por defecto). Aquí solo se ajusta rol/QA de
+                alguien que ya inició sesión al menos una vez. */}
             <div className="form-card animate-fade-in">
-              <h3>{editingUser ? 'Editar Usuario' : 'Crear Nuevo Usuario'}</h3>
-              
+              <h3>Editar Usuario</h3>
+
               {message && (
                 <div className={`message-alert ${message.type}`}>
                   {message.text}
                 </div>
               )}
 
-              <form onSubmit={handleUserSubmit} className="admin-form">
-                <div className="form-group">
-                  <label htmlFor="username">Nombre de Usuario</label>
-                  <input
-                    type="text"
-                    id="username"
-                    name="username"
-                    placeholder="ej. juan.perez"
-                    value={userFormData.username}
-                    onChange={handleUserChange}
-                    required
-                    disabled={!!editingUser}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="fullName">Nombre Completo</label>
-                  <input
-                    type="text"
-                    id="fullName"
-                    name="fullName"
-                    placeholder="ej. Juan Pérez"
-                    value={userFormData.fullName}
-                    onChange={handleUserChange}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="password">
-                    {editingUser ? 'Nueva Contraseña (Opcional)' : 'Contraseña Provisional'}
-                  </label>
-                  <input
-                    type="text"
-                    id="password"
-                    name="password"
-                    placeholder={editingUser ? 'Dejar en blanco para no cambiar' : 'Mínimo 6 caracteres'}
-                    value={userFormData.password}
-                    onChange={handleUserChange}
-                    required={!editingUser}
-                    minLength={6}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="role">Rol en el Sistema</label>
-                  <select name="role" id="role" value={userFormData.role} onChange={handleUserChange} required>
-                    <option value="dev">Desarrollador (dev)</option>
-                    <option value="QA">Analista QA (QA)</option>
-                    <option value="leader">Líder / Supervisor (leader)</option>
-                    <option value="admin">Administrador (admin)</option>
-                  </select>
-                </div>
-
-                {userFormData.role === 'dev' && (
-                  <div className="form-group animate-fade-in">
-                    <label htmlFor="assignedQaId">QA Principal / Fallback (Opcional)</label>
-                    <select 
-                      name="assignedQaId" 
-                      id="assignedQaId" 
-                      value={userFormData.assignedQaId} 
-                      onChange={handleUserChange}
-                    >
-                      <option value="">-- Sin asignar --</option>
-                      {qas.map(qa => (
-                        <option key={qa.id} value={qa.id}>{qa.username}</option>
-                      ))}
-                    </select>
-                    <small className="help-text">Establece el QA por defecto. Para asignar múltiples QAs en proyectos específicos, usa la pestaña de "Asignaciones".</small>
+              {editingUser ? (
+                <form onSubmit={handleUserSubmit} className="admin-form">
+                  <div className="form-group">
+                    <label>Usuario</label>
+                    <input type="text" value={editingUser.username} disabled />
                   </div>
-                )}
 
-                <div className="form-actions">
-                  <button type="submit" className="btn-primary" disabled={loading}>
-                    {loading ? 'Procesando...' : (editingUser ? 'Guardar Cambios' : 'Crear Usuario')}
-                  </button>
-                  {editingUser && (
+                  <div className="form-group">
+                    <label htmlFor="fullName">Nombre Completo</label>
+                    <input
+                      type="text"
+                      id="fullName"
+                      name="fullName"
+                      placeholder="ej. Juan Pérez"
+                      value={userFormData.fullName}
+                      onChange={handleUserChange}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="role">Rol en el Sistema</label>
+                    <select name="role" id="role" value={userFormData.role} onChange={handleUserChange} required>
+                      <option value="dev">Desarrollador (dev)</option>
+                      <option value="QA">Analista QA (QA)</option>
+                      <option value="leader">Líder / Supervisor (leader)</option>
+                      <option value="admin">Administrador (admin)</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group form-group-checkbox">
+                    <label htmlFor="isAdmin" className="checkbox-label">
+                      <input
+                        type="checkbox"
+                        id="isAdmin"
+                        name="isAdmin"
+                        checked={userFormData.isAdmin}
+                        onChange={(e) => setUserFormData(prev => ({ ...prev, isAdmin: e.target.checked }))}
+                      />
+                      Es administrador (acceso al Panel de Administración)
+                    </label>
+                    <small className="help-text">Independiente del rol de arriba: por ejemplo, un developer puede seguir siendo evaluado por QA y además administrar la herramienta.</small>
+                  </div>
+
+                  {userFormData.role === 'dev' && (
+                    <div className="form-group animate-fade-in">
+                      <label htmlFor="assignedQaId">QA Principal / Fallback (Opcional)</label>
+                      <select
+                        name="assignedQaId"
+                        id="assignedQaId"
+                        value={userFormData.assignedQaId}
+                        onChange={handleUserChange}
+                      >
+                        <option value="">-- Sin asignar --</option>
+                        {qas.map(qa => (
+                          <option key={qa.id} value={qa.id}>{qa.username}</option>
+                        ))}
+                      </select>
+                      <small className="help-text">Establece el QA por defecto. Para asignar múltiples QAs en proyectos específicos, usa la pestaña de "Asignaciones".</small>
+                    </div>
+                  )}
+
+                  <div className="form-actions">
+                    <button type="submit" className="btn-primary" disabled={loading}>
+                      {loading ? 'Guardando...' : 'Guardar Cambios'}
+                    </button>
                     <button type="button" className="btn-secondary" onClick={handleCancelUserEdit}>
                       Cancelar
                     </button>
-                  )}
-                </div>
-              </form>
+                  </div>
+                </form>
+              ) : (
+                <p className="section-desc">Selecciona un usuario de la lista para ajustar su rol o su QA asignado. Las cuentas se crean solas al iniciar sesión con Google.</p>
+              )}
             </div>
 
             {/* Right Column: User List */}
             <div className="list-card animate-fade-in">
               <div className="card-header-row">
                 <h3>Usuarios Registrados ({profiles.length})</h3>
-                <div className="card-header-actions">
-                  <button type="button" className="btn-bulk-upload" onClick={handleOpenBulkModal}>
-                    Carga masiva (Excel)
-                  </button>
-                  <input
-                    type="text"
-                    placeholder="Buscar usuario..."
-                    className="search-input"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
+                <input
+                  type="text"
+                  placeholder="Buscar usuario..."
+                  className="search-input"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
               </div>
 
               <div className="table-wrapper">
@@ -680,9 +549,12 @@ export default function AdminPanel() {
                             <span className={`role-badge badge-${user.role}`}>
                               {user.role}
                             </span>
+                            {user.is_admin && user.role !== 'admin' && user.role !== 'Administrator' && (
+                              <span className="role-badge badge-admin admin-flag-badge">admin</span>
+                            )}
                           </td>
                           <td>
-                            {user.role === 'dev' 
+                            {user.role === 'dev'
                               ? (assignedQa ? assignedQa.username : <span className="unassigned">Sin asignar</span>)
                               : <span className="not-applicable">-</span>
                             }
@@ -710,120 +582,6 @@ export default function AdminPanel() {
               </div>
             </div>
           </>
-        )}
-
-        {/* ==================== BULK UPLOAD MODAL ==================== */}
-        {bulkModalOpen && (
-          <div className="bulk-overlay" onClick={() => !bulkLoading && setBulkModalOpen(false)}>
-            <div className="bulk-card glass" onClick={(e) => e.stopPropagation()}>
-              <div className="bulk-header">
-                <h3>Carga masiva de usuarios</h3>
-                <button type="button" className="bulk-close-btn" onClick={() => setBulkModalOpen(false)} aria-label="Cerrar">
-                  ✕
-                </button>
-              </div>
-
-              <p className="bulk-desc">
-                Sube un archivo Excel (.xlsx) con las columnas <code>username, fullName, password, role, assignedQaUsername</code>.
-                La contraseña es opcional: si se deja en blanco, se genera una temporal.
-              </p>
-
-              <div className="bulk-actions-row">
-                <button type="button" className="btn-secondary" onClick={handleDownloadTemplate}>
-                  Descargar plantilla
-                </button>
-                <label className="btn-primary bulk-file-label">
-                  {bulkRows.length > 0 ? 'Cambiar archivo' : 'Seleccionar archivo'}
-                  <input type="file" accept=".xlsx,.xls" onChange={handleBulkFileSelect} hidden />
-                </label>
-              </div>
-
-              {bulkError && <div className="message-alert error">{bulkError}</div>}
-
-              {bulkRows.length > 0 && !bulkResults && (
-                <>
-                  <div className="table-wrapper bulk-preview-wrapper">
-                    <table className="users-table">
-                      <thead>
-                        <tr>
-                          <th>#</th>
-                          <th>Usuario</th>
-                          <th>Nombre</th>
-                          <th>Rol</th>
-                          <th>QA</th>
-                          <th>Estado</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {bulkRows.map((r, i) => (
-                          <tr key={i} className={!r.valid ? 'row-invalid' : ''}>
-                            <td>{i + 1}</td>
-                            <td>{r.username || <em className="text-muted">—</em>}</td>
-                            <td>{r.fullName || <em className="text-muted">—</em>}</td>
-                            <td>{r.role}</td>
-                            <td>{r.assignedQaUsername || '-'}</td>
-                            <td>
-                              {r.valid
-                                ? <span className="badge badge-success">OK</span>
-                                : <span className="badge badge-danger">{r.error}</span>}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <div className="bulk-summary">
-                    {bulkRows.filter(r => r.valid).length} de {bulkRows.length} filas listas para crear.
-                  </div>
-
-                  <button
-                    type="button"
-                    className="btn-primary"
-                    onClick={handleConfirmBulkUpload}
-                    disabled={bulkLoading || bulkRows.every(r => !r.valid)}
-                  >
-                    {bulkLoading ? 'Creando usuarios...' : `Confirmar carga (${bulkRows.filter(r => r.valid).length})`}
-                  </button>
-                </>
-              )}
-
-              {bulkResults && (
-                <>
-                  <div className="table-wrapper bulk-preview-wrapper">
-                    <table className="users-table">
-                      <thead>
-                        <tr>
-                          <th>#</th>
-                          <th>Usuario</th>
-                          <th>Resultado</th>
-                          <th>Contraseña generada</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {bulkResults.map((r) => (
-                          <tr key={r.row} className={!r.success ? 'row-invalid' : ''}>
-                            <td>{r.row}</td>
-                            <td>{r.username}</td>
-                            <td>
-                              {r.success
-                                ? <span className="badge badge-success">Creado</span>
-                                : <span className="badge badge-danger">{r.error}</span>}
-                            </td>
-                            <td>{r.generatedPassword || '-'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <button type="button" className="btn-secondary" onClick={() => { setBulkModalOpen(false); resetBulkState(); }}>
-                    Cerrar
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
         )}
 
         {/* ==================== TAB 2: PROJECTS ==================== */}
@@ -971,19 +729,21 @@ export default function AdminPanel() {
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="projectId">Proyecto</label>
-                  <select 
-                    name="projectId" 
-                    id="projectId" 
-                    value={assignmentFormData.projectId} 
-                    onChange={handleAssignmentChange}
-                    required
-                  >
-                    <option value="">-- Selecciona proyecto --</option>
+                  <label>Proyectos ({assignmentFormData.projectIds.length} seleccionado{assignmentFormData.projectIds.length === 1 ? '' : 's'})</label>
+                  <div className="project-checkbox-list">
+                    {projects.length === 0 && <p className="text-muted">No hay proyectos creados aún.</p>}
                     {projects.map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
+                      <label key={p.id} className="checkbox-label">
+                        <input
+                          type="checkbox"
+                          checked={assignmentFormData.projectIds.includes(p.id)}
+                          onChange={() => handleProjectCheckboxToggle(p.id)}
+                        />
+                        {p.name}
+                      </label>
                     ))}
-                  </select>
+                  </div>
+                  <small className="help-text">Selecciona uno o varios proyectos: se crea una asignación por cada uno.</small>
                 </div>
 
                 <button type="submit" className="btn-primary" disabled={loading}>
@@ -1016,23 +776,41 @@ export default function AdminPanel() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredAssignments.map((assign) => (
-                      <tr key={assign.id}>
-                        <td><strong>{assign.dev_username}</strong></td>
-                        <td>{assign.qa_username}</td>
-                        <td><span className="project-tag">{assign.project_name}</span></td>
+                    {groupedAssignments.map((group) => (
+                      <tr key={group.key}>
+                        <td><strong>{group.devUsername}</strong></td>
+                        <td>{group.qaUsername}</td>
+                        <td>
+                          <div className="project-tag-list">
+                            {group.projects.map(p => (
+                              <span key={p.assignmentId} className="project-tag project-tag-removable">
+                                {p.projectName}
+                                <button
+                                  type="button"
+                                  className="project-tag-remove"
+                                  onClick={() => handleDeleteAssign(p.assignmentId)}
+                                  disabled={loading}
+                                  aria-label={`Quitar proyecto ${p.projectName}`}
+                                  title={`Quitar proyecto ${p.projectName}`}
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        </td>
                         <td>
                           <button
                             className="btn-icon-delete"
-                            onClick={() => handleDeleteAssign(assign.id)}
+                            onClick={() => handleDeleteAssignmentGroup(group)}
                             disabled={loading}
                           >
-                            Eliminar
+                            Eliminar todo
                           </button>
                         </td>
                       </tr>
                     ))}
-                    {filteredAssignments.length === 0 && (
+                    {groupedAssignments.length === 0 && (
                       <tr>
                         <td colSpan={4} className="empty-table">No hay asignaciones de equipo activas.</td>
                       </tr>
@@ -1045,6 +823,30 @@ export default function AdminPanel() {
         )}
 
       </div>
+
+      {confirmDialog && (
+        <div className="confirm-overlay" onClick={() => setConfirmDialog(null)}>
+          <div className="confirm-card glass" onClick={(e) => e.stopPropagation()}>
+            <p className="confirm-message">{confirmDialog.message}</p>
+            <div className="confirm-actions">
+              <button type="button" className="btn-secondary" onClick={() => setConfirmDialog(null)}>
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn-confirm-danger"
+                onClick={() => {
+                  const action = confirmDialog.onConfirm;
+                  setConfirmDialog(null);
+                  action();
+                }}
+              >
+                Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style jsx>{`
         .admin-panel {
@@ -1189,6 +991,43 @@ export default function AdminPanel() {
           display: flex;
           flex-direction: column;
           gap: 8px;
+        }
+
+        .form-group-checkbox {
+          gap: 6px;
+        }
+
+        .checkbox-label {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          cursor: pointer;
+        }
+
+        .checkbox-label input[type='checkbox'] {
+          width: 16px;
+          height: 16px;
+          padding: 0;
+          background: none;
+          border: none;
+          accent-color: var(--color-primary, #8b5cf6);
+          cursor: pointer;
+        }
+
+        .admin-flag-badge {
+          margin-left: 6px;
+        }
+
+        .project-checkbox-list {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          max-height: 220px;
+          overflow-y: auto;
+          padding: 12px;
+          background: rgba(0, 0, 0, 0.2);
+          border: 1px solid var(--border-color);
+          border-radius: var(--radius-sm);
         }
 
         label {
@@ -1348,6 +1187,115 @@ export default function AdminPanel() {
           color: var(--text-primary);
         }
 
+        .project-tag-list {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+        }
+
+        .project-tag-removable {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .project-tag-remove {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 16px;
+          height: 16px;
+          padding: 0;
+          border: none;
+          border-radius: 50%;
+          background: rgba(255, 255, 255, 0.08);
+          color: var(--text-muted);
+          font-size: 0.9rem;
+          line-height: 1;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .project-tag-remove:hover:not(:disabled) {
+          background: var(--color-danger);
+          color: #fff;
+        }
+
+        .project-tag-remove:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .confirm-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.55);
+          backdrop-filter: blur(4px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+          padding: 20px;
+          animation: confirmOverlayFadeIn 0.2s ease;
+        }
+
+        .confirm-card {
+          width: 100%;
+          max-width: 380px;
+          padding: 28px;
+          border-radius: var(--radius-md);
+          display: flex;
+          flex-direction: column;
+          gap: 20px;
+          box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+          animation: confirmCardPopIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .confirm-message {
+          margin: 0;
+          font-size: 0.95rem;
+          line-height: 1.5;
+          color: var(--text-primary);
+          text-align: center;
+        }
+
+        .confirm-actions {
+          display: flex;
+          gap: 12px;
+          justify-content: center;
+        }
+
+        .confirm-actions .btn-secondary,
+        .confirm-actions .btn-confirm-danger {
+          flex: 1;
+          padding: 10px 16px;
+          border-radius: var(--radius-sm);
+          font-weight: 600;
+          font-size: 0.9rem;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .btn-confirm-danger {
+          border: none;
+          background: var(--color-danger);
+          color: #fff;
+        }
+
+        .btn-confirm-danger:hover {
+          filter: brightness(1.1);
+        }
+
+        @keyframes confirmOverlayFadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+
+        @keyframes confirmCardPopIn {
+          from { opacity: 0; transform: scale(0.92) translateY(8px); }
+          to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
         .role-badge {
           padding: 4px 8px;
           border-radius: 12px;
@@ -1461,132 +1409,6 @@ export default function AdminPanel() {
           to { opacity: 1; transform: translateY(0); }
         }
 
-        .card-header-actions {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          flex-wrap: wrap;
-        }
-
-        .btn-bulk-upload {
-          padding: 8px 14px;
-          border-radius: var(--radius-sm);
-          border: 1px solid var(--border-color);
-          background: rgba(255, 255, 255, 0.05);
-          color: var(--text-primary);
-          font-size: 0.82rem;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s ease;
-          white-space: nowrap;
-        }
-
-        .btn-bulk-upload:hover {
-          border-color: var(--color-primary);
-          color: var(--color-primary);
-          background: var(--color-primary-glow);
-        }
-
-        .bulk-overlay {
-          position: fixed;
-          inset: 0;
-          background: rgba(0, 0, 0, 0.55);
-          backdrop-filter: blur(4px);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 1000;
-          padding: 20px;
-        }
-
-        .bulk-card {
-          width: 100%;
-          max-width: 720px;
-          max-height: 85vh;
-          overflow-y: auto;
-          padding: 28px;
-          border-radius: var(--radius-md);
-          display: flex;
-          flex-direction: column;
-          gap: 16px;
-          box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
-        }
-
-        .bulk-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-        }
-
-        .bulk-header h3 {
-          font-size: 1.15rem;
-          color: var(--text-primary);
-        }
-
-        .bulk-close-btn {
-          width: 28px;
-          height: 28px;
-          border-radius: 50%;
-          border: 1px solid var(--border-color);
-          background: rgba(255, 255, 255, 0.05);
-          color: var(--text-secondary);
-          cursor: pointer;
-          font-size: 0.75rem;
-          flex-shrink: 0;
-        }
-
-        .bulk-close-btn:hover {
-          background: var(--color-danger);
-          border-color: var(--color-danger);
-          color: white;
-        }
-
-        .bulk-desc {
-          font-size: 0.85rem;
-          color: var(--text-secondary);
-          line-height: 1.5;
-        }
-
-        .bulk-desc code {
-          font-family: var(--font-mono);
-          font-size: 0.78rem;
-          background: rgba(255, 255, 255, 0.06);
-          padding: 1px 5px;
-          border-radius: 4px;
-        }
-
-        .bulk-actions-row {
-          display: flex;
-          gap: 12px;
-          flex-wrap: wrap;
-        }
-
-        .bulk-actions-row .btn-primary,
-        .bulk-actions-row .btn-secondary {
-          flex: none;
-          padding: 10px 18px;
-        }
-
-        .bulk-file-label {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-        }
-
-        .bulk-preview-wrapper {
-          max-height: 320px;
-          overflow-y: auto;
-        }
-
-        .bulk-summary {
-          font-size: 0.85rem;
-          color: var(--text-secondary);
-        }
-
-        .row-invalid {
-          background: rgba(244, 63, 94, 0.05);
-        }
       `}</style>
     </div>
   );

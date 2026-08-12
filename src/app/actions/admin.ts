@@ -1,9 +1,6 @@
 'use server';
 
-import { randomBytes } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
-import { translateAuthError } from '@/lib/authErrors';
-import { resolveEmail } from '@/lib/email';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -31,179 +28,16 @@ async function requireAdmin(accessToken: string | null | undefined): Promise<{ e
 
   const { data: callerProfile, error: profileError } = await supabaseAdmin
     .from('nocode_profiles')
-    .select('role')
+    .select('role, is_admin')
     .eq('id', user.id)
     .single();
 
-  if (profileError || !callerProfile || !['admin', 'Administrator'].includes(callerProfile.role)) {
+  const hasAdminAccess = !!callerProfile?.is_admin || ['admin', 'Administrator'].includes(callerProfile?.role);
+  if (profileError || !callerProfile || !hasAdminAccess) {
     return { error: 'No tienes permisos de administrador para realizar esta acción.' };
   }
 
   return { userId: user.id };
-}
-
-// Lógica de creación compartida entre la creación individual (createNewUser)
-// y la carga masiva (bulkCreateUsers). No valida permisos: quien llama debe
-// haber pasado ya por requireAdmin().
-async function createUserRecord({
-  username,
-  password,
-  role,
-  fullName,
-  assignedQaId,
-}: {
-  username: string;
-  password: string;
-  role: string;
-  fullName?: string;
-  assignedQaId?: string;
-}): Promise<{ success: boolean; error?: string; message?: string }> {
-  if (!username || !password || !role) {
-    return { success: false, error: 'Faltan campos requeridos.' };
-  }
-
-  // Si el username escrito ya es un correo real (tiene "@"), se respeta tal
-  // cual; si no, se usa el dominio interno.
-  const email = resolveEmail(username);
-
-  try {
-    // 1. Create the user in auth.users
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true
-    });
-
-    if (authError) {
-      return { success: false, error: translateAuthError(authError.message) };
-    }
-
-    if (!authData.user) {
-      return { success: false, error: 'Error desconocido al crear usuario en Supabase Auth.' };
-    }
-
-    // 2. The trigger `on_auth_user_created_nocode` will have created the profile automatically.
-    // However, it creates it with role 'dev' (or 'admin' según la regla del trigger por email).
-    // We need to update the profile with the selected role and QA assignment.
-
-    // Give it a brief delay to ensure trigger has executed (usually synchronous in Postgres, but just in case)
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    const updateData: any = { role, full_name: fullName || null };
-    if (role === 'dev' && assignedQaId) {
-      updateData.assigned_qa_id = assignedQaId;
-    }
-
-    const { error: profileError } = await supabaseAdmin
-      .from('nocode_profiles')
-      .update(updateData)
-      .eq('id', authData.user.id);
-
-    if (profileError) {
-      return { success: false, error: `Usuario creado, pero hubo un error actualizando su perfil: ${profileError.message}` };
-    }
-
-    return { success: true, message: `Usuario ${username} creado exitosamente con el rol ${role}.` };
-  } catch (error: any) {
-    return { success: false, error: error.message || 'Error inesperado del servidor.' };
-  }
-}
-
-export async function createNewUser(formData: FormData) {
-  if (!supabaseServiceKey) {
-    return { success: false, error: 'SUPABASE_SERVICE_ROLE_KEY no está configurada en el entorno del servidor.' };
-  }
-
-  const auth = await requireAdmin(formData.get('accessToken') as string);
-  if ('error' in auth) return { success: false, error: auth.error };
-
-  const username = formData.get('username') as string;
-  const password = formData.get('password') as string;
-  const role = formData.get('role') as string;
-  const assignedQaId = formData.get('assignedQaId') as string;
-  const fullName = formData.get('fullName') as string;
-
-  return createUserRecord({ username, password, role, fullName, assignedQaId });
-}
-
-type BulkUserRow = {
-  username: string;
-  fullName?: string;
-  password?: string;
-  role: string;
-  assignedQaUsername?: string;
-};
-
-type BulkUserResult = {
-  row: number;
-  username: string;
-  success: boolean;
-  message?: string;
-  error?: string;
-  generatedPassword?: string;
-};
-
-export async function bulkCreateUsers(rows: BulkUserRow[], accessToken: string): Promise<{ success: boolean; error?: string; results?: BulkUserResult[] }> {
-  if (!supabaseServiceKey) {
-    return { success: false, error: 'SUPABASE_SERVICE_ROLE_KEY no está configurada en el entorno del servidor.' };
-  }
-
-  const auth = await requireAdmin(accessToken);
-  if ('error' in auth) return { success: false, error: auth.error };
-
-  if (!Array.isArray(rows) || rows.length === 0) {
-    return { success: false, error: 'No se recibieron filas para procesar.' };
-  }
-
-  // Resuelve nombre de usuario QA -> id una sola vez para toda la carga.
-  const { data: qaRows } = await supabaseAdmin
-    .from('nocode_profiles')
-    .select('id, username')
-    .eq('role', 'QA');
-  const qaByUsername = new Map((qaRows || []).map((q: any) => [(q.username || '').toLowerCase(), q.id]));
-
-  const allowedRoles = ['dev', 'QA', 'leader', 'admin', 'Administrator'];
-  const results: BulkUserResult[] = [];
-
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
-    const username = (row.username || '').trim();
-    const role = (row.role || '').trim();
-
-    if (!username || !allowedRoles.includes(role)) {
-      results.push({
-        row: i + 1,
-        username,
-        success: false,
-        error: !username ? 'Falta el nombre de usuario.' : `Rol inválido: "${row.role}".`
-      });
-      continue;
-    }
-
-    let password = (row.password || '').trim();
-    let generatedPassword: string | undefined;
-    if (!password || password.length < 6) {
-      password = randomBytes(6).toString('base64url');
-      generatedPassword = password;
-    }
-
-    let assignedQaId: string | undefined;
-    if (role === 'dev' && row.assignedQaUsername) {
-      assignedQaId = qaByUsername.get(row.assignedQaUsername.trim().toLowerCase());
-    }
-
-    const result = await createUserRecord({ username, password, role, fullName: row.fullName, assignedQaId });
-    results.push({
-      row: i + 1,
-      username,
-      success: result.success,
-      message: result.message,
-      error: result.error,
-      generatedPassword
-    });
-  }
-
-  return { success: true, results };
 }
 
 export async function updateUser(formData: FormData) {
@@ -218,27 +52,28 @@ export async function updateUser(formData: FormData) {
   const fullName = formData.get('fullName') as string;
   const role = formData.get('role') as string;
   const assignedQaId = formData.get('assignedQaId') as string;
-  const password = formData.get('password') as string;
+  const isAdminFlag = formData.get('isAdmin') === 'true';
 
   if (!userId || !role) {
     return { success: false, error: 'Faltan campos requeridos.' };
   }
 
-  try {
-    // 1. If password is provided, reset it in auth.users
-    if (password && password.trim().length >= 6) {
-      const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
-        password: password.trim()
-      });
-      if (authError) {
-        return { success: false, error: `Error actualizando contraseña: ${translateAuthError(authError.message)}` };
-      }
-    }
+  // Evita que un admin se quite a sí mismo el permiso y quede sin forma de
+  // volver a entrar al panel (mismo espíritu que el bloqueo de auto-borrado
+  // en deleteUser). Otro admin sí puede quitárselo.
+  if (userId === auth.userId && !isAdminFlag) {
+    return { success: false, error: 'No puedes quitarte a ti mismo el permiso de administrador.' };
+  }
 
-    // 2. Update the profile in nocode_profiles
-    const updateData: any = { 
-      role, 
-      full_name: fullName || null 
+  try {
+    // Update the profile in nocode_profiles. Las cuentas se autenticán con
+    // Google (sin contraseña en Supabase Auth), así que aquí solo se ajusta
+    // el rol funcional, la bandera de admin y la asignación de QA — nunca
+    // hay contraseña que resetear.
+    const updateData: any = {
+      role,
+      full_name: fullName || null,
+      is_admin: isAdminFlag
     };
 
     if (role === 'dev') {

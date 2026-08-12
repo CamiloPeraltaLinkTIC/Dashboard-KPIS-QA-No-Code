@@ -24,7 +24,7 @@ interface RecentLogsProps {
 
 export default function RecentLogs({ logs, onDeleteReview, onReopenReview, jumpTarget }: RecentLogsProps) {
   const { profile } = useAuth();
-  const isAdmin = profile?.role === 'admin' || profile?.role === 'Administrator';
+  const isAdmin = !!profile?.is_admin || profile?.role === 'admin' || profile?.role === 'Administrator';
   const canReopen = isAdmin || profile?.role === 'QA';
   const [filterStatus, setFilterStatus] = useState<string>('All');
   const [codeFilter, setCodeFilter] = useState('');
